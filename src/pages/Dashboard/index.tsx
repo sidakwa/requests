@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { QuickStatsCards } from './components/QuickStatsCards'
 import { KPICards } from './components/KPICards'
-import { 
+import {
   RefreshCw, AlertCircle
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,6 +26,27 @@ import {
   Area
 } from 'recharts'
 
+interface AgingItem {
+  reference: string
+  title: string
+  entity: string
+  awaiting: string
+  daysPending: number
+  amount: number
+  currency: string
+}
+
+interface MonthlySpendItem {
+  month: string
+  actual: number
+  forecast: number
+}
+
+interface EntitySpendItem {
+  name: string
+  amount: number
+}
+
 export default function Dashboard() {
   const { user, profile } = useAuthStore()
   const [loading, setLoading] = useState(true)
@@ -43,10 +64,10 @@ export default function Dashboard() {
     pendingApprovals: 0,
     avgApprovalDays: 0
   })
-  const [monthlySpend, setMonthlySpend] = useState([])
-  const [spendByEntity, setSpendByEntity] = useState([])
-  const [agingData, setAgingData] = useState([])
-  const [error, setError] = useState(null)
+  const [monthlySpend, setMonthlySpend] = useState<MonthlySpendItem[]>([])
+  const [spendByEntity, setSpendByEntity] = useState<EntitySpendItem[]>([])
+  const [agingData, setAgingData] = useState<AgingItem[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
@@ -74,16 +95,16 @@ export default function Dashboard() {
       const pendingCount = requests?.filter(r => r.status === 'in_review').length || 0
       const returnedCount = requests?.filter(r => r.status === 'returned').length || 0
       const rejectedCount = requests?.filter(r => r.status === 'rejected').length || 0
-      
+
       const totalAmount = requests?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0
-      const approvedAmount = requests?.reduce((sum, r) => 
+      const approvedAmount = requests?.reduce((sum, r) =>
         r.status === 'approved' ? sum + (r.total_amount || 0) : sum, 0
       ) || 0
-      const pendingAmount = requests?.reduce((sum, r) => 
+      const pendingAmount = requests?.reduce((sum, r) =>
         r.status === 'in_review' ? sum + (r.total_amount || 0) : sum, 0
       ) || 0
-      
-      const capexAmount = requests?.reduce((sum, r) => 
+
+      const capexAmount = requests?.reduce((sum, r) =>
         r.category === 'procurement' ? sum + (r.total_amount || 0) : sum, 0
       ) || 0
       const opexAmount = totalAmount - capexAmount
@@ -109,34 +130,34 @@ export default function Dashboard() {
         avgApprovalDays: 4.2
       })
 
-      const monthlyMap = new Map()
+      const monthlyMap = new Map<string, MonthlySpendItem>()
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      
+
       requests?.forEach(r => {
         const date = new Date(r.submitted_at || r.created_at)
         const monthName = months[date.getMonth()]
-        
+
         if (!monthlyMap.has(monthName)) {
           monthlyMap.set(monthName, { month: monthName, actual: 0, forecast: 0 })
         }
-        const entry = monthlyMap.get(monthName)
+        const entry = monthlyMap.get(monthName)!
         entry.actual += r.total_amount || 0
         entry.forecast += (r.total_amount || 0) * 1.1
       })
-      
+
       setMonthlySpend(Array.from(monthlyMap.values()))
 
-      const entityMap = new Map()
+      const entityMap = new Map<string, EntitySpendItem>()
       requests?.forEach(r => {
         const entityCode = r.legal_entity?.code || 'Unknown'
         if (!entityMap.has(entityCode)) {
           entityMap.set(entityCode, { name: entityCode, amount: 0 })
         }
-        entityMap.get(entityCode).amount += r.total_amount || 0
+        entityMap.get(entityCode)!.amount += r.total_amount || 0
       })
       setSpendByEntity(Array.from(entityMap.values()).sort((a, b) => b.amount - a.amount).slice(0, 8))
 
-      const aging = (requests || [])
+      const aging: AgingItem[] = (requests || [])
         .filter(r => r.status === 'in_review')
         .map(r => {
           const daysPending = Math.floor((Date.now() - new Date(r.submitted_at || r.created_at).getTime()) / (1000 * 3600 * 24))
@@ -155,14 +176,15 @@ export default function Dashboard() {
       setAgingData(aging)
 
     } catch (err) {
-      console.error('Error fetching dashboard data:', err)
-      setError(err.message)
+      const error = err as Error
+      console.error('Error fetching dashboard data:', error)
+      setError(error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  const getDaysColor = (days) => {
+  const getDaysColor = (days: number): string => {
     if (days > 30) return 'bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium'
     if (days > 14) return 'bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-medium'
     return 'bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium'
@@ -213,8 +235,8 @@ export default function Dashboard() {
         </Alert>
       )}
 
-      {/* Quick Stats Cards - These will show colors */}
-      <QuickStatsCards 
+      {/* Quick Stats Cards */}
+      <QuickStatsCards
         totalRequests={stats.totalRequests}
         approvedCount={stats.approvedCount}
         pendingCount={stats.pendingCount}
@@ -223,7 +245,7 @@ export default function Dashboard() {
       />
 
       {/* KPI Cards */}
-      <KPICards 
+      <KPICards
         totalAmount={stats.totalAmount}
         totalRequests={stats.totalRequests}
         approvedAmount={stats.approvedAmount}
@@ -246,7 +268,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="month" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" />
-                <Tooltip formatter={(value) => `$${(value / 1000).toFixed(0)}K`} />
+                <Tooltip formatter={(value) => `$${(Number(value) / 1000).toFixed(0)}K`} />
                 <Legend />
                 <Area type="monotone" dataKey="actual" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Actual Spend" />
                 <Area type="monotone" dataKey="forecast" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Forecast" />
@@ -266,9 +288,9 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis type="number" stroke="#6b7280" />
                 <YAxis type="category" dataKey="name" width={100} stroke="#6b7280" />
-                <Tooltip formatter={(value) => `$${(value / 1000).toFixed(0)}K`} />
+                <Tooltip formatter={(value) => `$${(Number(value) / 1000).toFixed(0)}K`} />
                 <Bar dataKey="amount">
-                  {spendByEntity.map((entry, index) => (
+                  {spendByEntity.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
                   ))}
                 </Bar>
@@ -290,20 +312,20 @@ export default function Dashboard() {
               <RePieChart>
                 <Pie
                   data={[
-                    { name: 'CAPEX', value: stats.capexAmount, color: '#3b82f6' },
-                    { name: 'OPEX', value: stats.opexAmount, color: '#10b981' }
+                    { name: 'CAPEX', value: stats.capexAmount },
+                    { name: 'OPEX', value: stats.opexAmount }
                   ]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name ?? ''}: ${((percent ?? 0) * 100).toFixed(0)}%`}
                   outerRadius={80}
                   dataKey="value"
                 >
                   <Cell fill="#3b82f6" />
                   <Cell fill="#10b981" />
                 </Pie>
-                <Tooltip formatter={(value) => `$${(value / 1000).toFixed(0)}K`} />
+                <Tooltip formatter={(value) => `$${(Number(value) / 1000).toFixed(0)}K`} />
               </RePieChart>
             </ResponsiveContainer>
             <div className="flex justify-center gap-4 mt-4">

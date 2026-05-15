@@ -18,10 +18,16 @@ export default {
     extend: {
       colors: {
         border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+  	input: "hsl(var(--input))",
+  	ring: "hsl(var(--ring))",
+  	background: "hsl(var(--background))",
+  	foreground: "hsl(var(--foreground))",
+  	warning: "hsl(var(--warning))",          // ADD THIS
+  	"chart-1": "hsl(var(--chart-1))",        // ADD THIS
+  	"chart-2": "hsl(var(--chart-2))",        // ADD THIS
+  	"chart-3": "hsl(var(--chart-3))",        // ADD THIS
+  	"chart-4": "hsl(var(--chart-4))",        // ADD THIS
+	"chart-5": "hsl(var(--chart-5))",        // ADD THIS
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",

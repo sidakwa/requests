@@ -35,7 +35,7 @@ function StatusBadge({ status }: { status: RequestStatus }) {
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } },
-  item: { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 280, damping: 28 } } },
+  item: { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 280, damping: 28 } } },
 };
 
 export default function Dashboard() {

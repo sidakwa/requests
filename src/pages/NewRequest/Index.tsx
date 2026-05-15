@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
@@ -52,7 +52,7 @@ export default function NewRequest() {
   const [legalEntities, setLegalEntities] = useState<any[]>([])
   const [departments, setDepartments] = useState<any[]>([])
 
-  useState(() => {
+  useEffect(() => {
     fetchLegalEntities()
     fetchDepartments()
   }, [])
