@@ -7,6 +7,7 @@ import NewRequest from "@/pages/NewRequest"
 import ApprovalsInbox from "@/pages/ApprovalsInbox"
 import Reports from "@/pages/Reports"
 import Admin from "@/pages/Admin"
+import Profile from "@/pages/Profile"
 import ViewRequest from "@/pages/ViewRequest"
 import Login from "@/pages/Login"
 
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="/approvals" element={<ApprovalsInbox />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/request/:id" element={<ViewRequest />} />
       </Routes>
     </Layout>

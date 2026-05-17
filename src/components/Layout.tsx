@@ -91,7 +91,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors">
                 <Avatar className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600">
                   <AvatarFallback className="text-white text-sm">
-                    {profile?.full_name ? getInitials(profile.full_name) : 'U'}
+                    {profile?.full_name ? getInitials(profile.full_name) : user?.email?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
@@ -111,6 +111,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => signOut()}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>

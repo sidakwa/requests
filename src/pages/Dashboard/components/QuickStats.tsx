@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react'
-import type { QuickStats as QuickStatsType } from '@/api/dashboardApi'
+import type { QuickStats as QuickStatsType } from '@/api/types'
 
 interface QuickStatsProps {
   stats: QuickStatsType | null

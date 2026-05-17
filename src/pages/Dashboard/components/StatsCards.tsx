@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Clock, FileText, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
-import type { DashboardStats } from '@/api/dashboardApi'
+import type { DashboardStats } from '@/api/types'
 
 interface StatsCardsProps {
   stats: DashboardStats | null

@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Clock, CheckCircle2, XCircle, RotateCcw, AlertCircle } from 'lucide-react'
-import type { RecentActivity as RecentActivityType } from '@/api/dashboardApi'
+import { Clock, CheckCircle2, XCircle, RotateCcw } from 'lucide-react'
+import type { RecentActivity as RecentActivityType } from '@/api/types'
 
 interface RecentActivityProps {
   activities: RecentActivityType[]
