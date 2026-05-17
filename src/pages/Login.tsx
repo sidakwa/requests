@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Building2, Shield, AlertCircle } from 'lucide-react'
+import { Building2, Shield, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function Login() {
   const { signInWithAzure } = useAuth()
@@ -15,9 +15,10 @@ export default function Login() {
     setLoading(true)
     try {
       await signInWithAzure()
-      // The page will redirect to Azure login
+      // The page will redirect to Azure, so we don't need to do anything else
     } catch (err: any) {
-      setError(err.message)
+      console.error('Login error:', err)
+      setError(err.message || 'Failed to sign in. Please try again.')
       setLoading(false)
     }
   }
@@ -52,7 +53,7 @@ export default function Login() {
               <span className="font-semibold text-blue-800">Secure Authentication</span>
             </div>
             <p className="text-sm text-blue-700">
-              Sign in with your SEACOM Microsoft Azure AD credentials to access funding requests, approvals, and reports.
+              Sign in with your SEACOM Microsoft Azure AD credentials.
             </p>
           </div>
           
@@ -61,20 +62,18 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg"
           >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-            </svg>
-            {loading ? 'Redirecting...' : 'Sign in with Microsoft (SEACOM)'}
+            {loading ? (
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            ) : (
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+              </svg>
+            )}
+            {loading ? 'Redirecting to Microsoft...' : 'Sign in with Microsoft (SEACOM)'}
           </Button>
           
-          <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-            <Shield className="w-3 h-3" />
-            <span>Powered by Microsoft Azure AD & Supabase</span>
-          </div>
-          
-          <p className="text-xs text-center text-gray-400">
+          <p className="text-xs text-center text-gray-500">
             By signing in, you agree to the SEACOM security policies and terms of use.
-            Your identity will be verified through Azure Active Directory.
           </p>
         </CardContent>
       </Card>

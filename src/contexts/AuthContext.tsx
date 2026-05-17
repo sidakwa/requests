@@ -16,6 +16,7 @@ type Profile = {
 type AuthContextType = {
   user: User | null;
   profile: Profile | null;
+  userRole: string | null;
   loading: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -30,180 +31,146 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string, email: string, fullName?: string) => {
+  const fetchProfile = async (userId: string, email: string) => {
+    const fallbackProfile: Profile = {
+      id: userId,
+      email,
+      full_name: email.split('@')[0],
+      role: 'submitter',
+    };
+
     try {
-      console.log('📝 Fetching profile for user:', userId, email);
-      
-      // Set a timeout for the profile fetch
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
-      );
-      
-      const fetchPromise = supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
-      
-      const { data: profileData, error: profileError } = await Promise.race([fetchPromise, timeoutPromise]) as any;
-      
+
       if (profileError) {
-        console.error('❌ Profile fetch error:', profileError);
-        // Create a fallback profile
-        const fallbackProfile = {
-          id: userId,
-          email: email,
-          full_name: fullName || email.split('@')[0],
-          role: 'submitter'
-        };
-        console.log('📝 Using fallback profile:', fallbackProfile);
-        setProfile(fallbackProfile as Profile);
-        return fallbackProfile;
+        console.error('Profile fetch error:', profileError);
+        setProfile(fallbackProfile);
+        return;
       }
 
       if (profileData) {
-        console.log('✅ Existing profile found:', profileData);
         setProfile(profileData);
-        return profileData;
-      } else {
-        // Create profile if it doesn't exist
-        console.log('🆕 No profile found, creating new profile...');
-        const displayName = fullName || email.split('@')[0];
-        
-        const { data: newProfile, error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            email: email,
-            full_name: displayName,
-            role: 'submitter'
-          })
-          .select()
-          .single();
-        
-        if (insertError) {
-          console.error('❌ Profile creation error:', insertError);
-          // Use fallback profile
-          const fallbackProfile = {
-            id: userId,
-            email: email,
-            full_name: displayName,
-            role: 'submitter'
-          };
-          setProfile(fallbackProfile as Profile);
-          return fallbackProfile;
-        }
-        
-        console.log('✅ New profile created:', newProfile);
-        setProfile(newProfile);
-        return newProfile;
+        return;
       }
+
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert(fallbackProfile)
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Profile creation error:', insertError);
+        setProfile(fallbackProfile);
+        return;
+      }
+
+      setProfile(newProfile || fallbackProfile);
     } catch (err) {
-      console.error('💥 Profile fetch error:', err);
-      // Create a fallback profile so the app can still work
-      const fallbackProfile = {
-        id: userId,
-        email: email,
-        full_name: fullName || email.split('@')[0],
-        role: 'submitter'
-      };
-      console.log('📝 Using fallback profile due to error:', fallbackProfile);
-      setProfile(fallbackProfile as Profile);
-      return fallbackProfile;
+      console.error('Profile fetch exception:', err);
+      setProfile(fallbackProfile);
     }
   };
 
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: NodeJS.Timeout;
 
     const initAuth = async () => {
       try {
-        console.log('🚀 Initializing auth...');
-        
-        // Add a global timeout for auth initialization
-        timeoutId = setTimeout(() => {
-          if (isMounted && loading) {
-            console.log('⚠️ Auth initialization timeout, forcing loading false');
-            setLoading(false);
-          }
-        }, 15000);
-        
+        // Handle the OAuth callback
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error('❌ Session error:', sessionError);
+          console.error('Session error:', sessionError);
         }
-        
-        console.log('📊 Session user:', session?.user?.email);
 
         if (isMounted) {
           if (session?.user) {
+            console.log('User found in session:', session.user.email);
             setUser(session.user);
-            const userFullName = session.user.user_metadata?.full_name || 
-                                 session.user.user_metadata?.name || 
-                                 session.user.email?.split('@')[0];
-            await fetchProfile(session.user.id, session.user.email || '', userFullName);
+            await fetchProfile(session.user.id, session.user.email || '');
+          } else {
+            console.log('No session found');
+            setUser(null);
+            setProfile(null);
           }
-          setLoading(false);
-          clearTimeout(timeoutId);
         }
       } catch (err) {
-        console.error('💥 Auth init error:', err);
+        console.error('Auth init error:', err);
+        if (isMounted) {
+          setUser(null);
+          setProfile(null);
+        }
+      } finally {
         if (isMounted) setLoading(false);
-        clearTimeout(timeoutId);
       }
     };
 
     initAuth();
 
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event, session?.user?.email);
+      console.log('Auth event:', event, session?.user?.email);
       
       if (isMounted) {
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('User signed in:', session.user.email);
           setUser(session.user);
-          const userFullName = session.user.user_metadata?.full_name || 
-                               session.user.user_metadata?.name || 
-                               session.user.email?.split('@')[0];
-          await fetchProfile(session.user.id, session.user.email || '', userFullName);
-          setLoading(false);
+          await fetchProfile(session.user.id, session.user.email || '');
         } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out');
           setUser(null);
           setProfile(null);
-          setLoading(false);
-        } else if (event === 'TOKEN_REFRESHED') {
-          setUser(session?.user ?? null);
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          console.log('Token refreshed for:', session.user.email);
+          setUser(session.user);
         }
+        setLoading(false);
       }
     });
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
 
   const signInWithAzure = async () => {
-    console.log('🔐 Starting Azure sign in...');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'azure',
-      options: {
-        redirectTo: window.location.origin,
-        scopes: 'email openid profile',
+    try {
+      console.log('Starting Azure sign in...');
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'azure',
+        options: {
+          redirectTo: window.location.origin,
+          scopes: 'email openid profile offline_access',
+        }
+      });
+      
+      if (error) {
+        console.error('Azure sign in error:', error);
+        throw error;
       }
-    });
-    if (error) {
-      console.error('❌ Azure sign in error:', error);
-      throw error;
+      
+      console.log('Redirecting to Azure...', data);
+      // The redirect happens automatically
+    } catch (err) {
+      console.error('Sign in error:', err);
+      throw err;
     }
   };
 
   const signOut = async () => {
+    console.log('Signing out...');
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
+    // Clear any stored data
+    localStorage.clear();
+    window.location.href = '/';
   };
 
   const refreshProfile = async () => {
@@ -212,13 +179,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const isAdmin = profile?.role === 'admin';
+  const userRole = profile?.role || 'submitter';
+  const isAdmin = userRole === 'admin';
 
   return (
     <AuthContext.Provider
       value={{
         user,
         profile,
+        userRole,
         loading,
         isAdmin,
         signOut,

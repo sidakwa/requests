@@ -14,6 +14,8 @@ import Login from "@/pages/Login"
 function AppRoutes() {
   const { user, loading } = useAuth()
 
+  console.log('AppRoutes - user:', user?.email, 'loading:', loading)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -25,10 +27,12 @@ function AppRoutes() {
     )
   }
 
+  // Show login page when not authenticated
   if (!user) {
     return <Login />
   }
 
+  // Show main app when authenticated
   return (
     <Layout>
       <Routes>

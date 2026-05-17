@@ -7,10 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { 
-  CheckCircle2, Clock, XCircle, FileText, TrendingUp, DollarSign,
-  Plus, Search, AlertTriangle, RotateCcw, Filter, Building2
+  CheckCircle2, Clock, XCircle, FileText, 
+  Plus, Search, RotateCcw, Building2, Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -19,20 +18,14 @@ interface FundingRequest {
   request_number: string
   title: string
   description: string
-  department_id: string
-  business_unit: string
-  legal_entity_id: string
-  currency: string
   amount: number
+  currency: string
   budget_type: 'CAPEX' | 'OPEX'
+  business_unit: string
   status: string
-  current_approver: string
-  required_by_date: string
-  cost_centre: string
-  gl_code: string
   vendor: string
+  required_by_date: string
   created_at: string
-  segment?: string
   department?: { name: string }
   legal_entity?: { name: string; code: string }
 }
@@ -40,14 +33,13 @@ interface FundingRequest {
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   Approved: { label: 'Approved', color: 'text-green-700', bg: 'bg-green-100', icon: CheckCircle2 },
   Pending: { label: 'Pending', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: Clock },
-  in_review: { label: 'In Review', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: Clock },
   Returned: { label: 'Returned', color: 'text-orange-700', bg: 'bg-orange-100', icon: RotateCcw },
   Rejected: { label: 'Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: XCircle },
   Draft: { label: 'Draft', color: 'text-gray-700', bg: 'bg-gray-100', icon: FileText },
 }
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { user, userRole, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [requests, setRequests] = useState<FundingRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,16 +48,35 @@ export default function Dashboard() {
   const [filterBU, setFilterBU] = useState('all')
   const [filterClass, setFilterClass] = useState('all')
 
+  // Wait for auth to load before fetching data
   useEffect(() => {
-    if (user) {
+    if (!authLoading && user) {
       fetchRequests()
+    } else if (!authLoading && !user) {
+      setLoading(false)
     }
-  }, [user])
+  }, [user, userRole, authLoading])
+
+  // Add timeout to prevent infinite loading
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+    
+    if (loading && !authLoading) {
+      timeoutId = setTimeout(() => {
+        console.log('Loading timeout, forcing loading false')
+        setLoading(false)
+      }, 10000)
+    }
+    
+    return () => clearTimeout(timeoutId)
+  }, [loading, authLoading])
 
   const fetchRequests = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      console.log('Fetching requests for role:', userRole)
+      
+      let query = supabase
         .from('funding_requests')
         .select(`
           *,
@@ -73,8 +84,46 @@ export default function Dashboard() {
           legal_entity:legal_entities(name, code)
         `)
         .order('created_at', { ascending: false })
+
+      // Role-based filtering
+      switch (userRole) {
+        case 'submitter':
+          console.log('Filtering for submitter:', user?.email)
+          query = query.eq('requester_email', user?.email)
+          break
+          
+        case 'approver':
+          console.log('Filtering for approver:', user?.email)
+          const { data: approvals } = await supabase
+            .from('approval_actions')
+            .select('request_id')
+            .eq('approver_email', user?.email)
+          
+          const requestIds = approvals?.map(a => a.request_id) || []
+          console.log('Found approval request IDs:', requestIds)
+          
+          if (requestIds.length === 0) {
+            setRequests([])
+            setLoading(false)
+            return
+          }
+          
+          query = query.in('id', requestIds)
+          break
+          
+        case 'admin':
+          console.log('Admin view - showing all requests')
+          break
+          
+        default:
+          console.log('Defaulting to submitter filter')
+          query = query.eq('requester_email', user?.email)
+      }
       
+      const { data, error } = await query
       if (error) throw error
+      
+      console.log('Fetched requests:', data?.length)
       setRequests(data || [])
     } catch (err) {
       console.error('Error fetching requests:', err)
@@ -83,21 +132,55 @@ export default function Dashboard() {
     }
   }
 
-  // Calculate stats from real data
+  // Show loading state while auth is initializing or data is loading
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Card className="max-w-md">
+          <CardContent className="p-6 text-center">
+            <p className="text-gray-600">Please sign in to view the dashboard</p>
+            <Button className="mt-4" onClick={() => navigate('/login')}>Sign In</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Calculate stats
   const stats = {
     total: requests.length,
     approved: requests.filter(r => r.status === 'Approved').length,
-    inReview: requests.filter(r => r.status === 'Pending' || r.status === 'in_review').length,
+    inReview: requests.filter(r => r.status === 'Pending').length,
     returned: requests.filter(r => r.status === 'Returned').length,
     rejected: requests.filter(r => r.status === 'Rejected').length,
-    totalUSD: requests.reduce((sum, r) => sum + (r.amount || 0), 0),
+    totalUSD: requests.reduce((sum, r) => {
+      const rates: Record<string, number> = {
+        USD: 1, ZAR: 0.054, EUR: 1.08, GBP: 1.27,
+        KES: 0.0077, MZN: 0.016, TZS: 0.00039, UGX: 0.00027
+      }
+      const rate = rates[r.currency] || 1
+      return sum + (r.amount * rate)
+    }, 0),
     capex: requests.filter(r => r.budget_type === 'CAPEX').reduce((sum, r) => sum + (r.amount || 0), 0),
     opex: requests.filter(r => r.budget_type === 'OPEX').reduce((sum, r) => sum + (r.amount || 0), 0),
   }
 
   // Filter requests
   const filtered = requests.filter(r => {
-    if (search && !r.title?.toLowerCase().includes(search.toLowerCase()) && !r.request_number?.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !r.title?.toLowerCase().includes(search.toLowerCase()) && 
+        !r.request_number?.toLowerCase().includes(search.toLowerCase())) return false
     if (filterStatus !== 'all' && r.status !== filterStatus) return false
     if (filterBU !== 'all' && r.business_unit !== filterBU) return false
     if (filterClass !== 'all' && r.budget_type !== filterClass) return false
@@ -115,27 +198,25 @@ export default function Dashboard() {
   }
 
   const formatCurrency = (amount: number, currency: string) => {
-    const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', ZAR: 'R', KES: 'KSh', MZN: 'MT', TZS: 'TSh', UGX: 'USh' }
-    const symbol = symbols[currency] || currency
-    if (currency === 'ZAR') {
-      return `${symbol} ${(amount / 1000).toFixed(0)}k`
+    const symbols: Record<string, string> = { 
+      USD: '$', EUR: '€', GBP: '£', ZAR: 'R', 
+      KES: 'KSh', MZN: 'MT', TZS: 'TSh', UGX: 'USh' 
     }
+    const symbol = symbols[currency] || '$'
     return `${symbol} ${amount.toLocaleString()}`
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div><div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div><div className="h-4 w-64 bg-gray-200 rounded animate-pulse mt-1"></div></div>
-          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded animate-pulse"></div>)}
-        </div>
-        <div className="h-96 bg-gray-200 rounded animate-pulse"></div>
-      </div>
-    )
+  const getRoleMessage = () => {
+    switch (userRole) {
+      case 'submitter':
+        return 'Showing your submitted requests'
+      case 'approver':
+        return 'Showing requests pending your approval'
+      case 'admin':
+        return 'Showing all requests (Admin View)'
+      default:
+        return 'Showing your requests'
+    }
   }
 
   return (
@@ -144,7 +225,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Funding Portal</h1>
-          <p className="text-sm text-gray-500 mt-0.5">All funding requests across SEACOM group</p>
+          <p className="text-sm text-gray-500 mt-0.5">{getRoleMessage()}</p>
         </div>
         <Button onClick={() => navigate('/new-request')} className="bg-blue-600 hover:bg-blue-700 gap-2">
           <Plus className="w-4 h-4" /> New Request
@@ -224,44 +305,47 @@ export default function Dashboard() {
 
       {/* Requests List */}
       <div className="space-y-3">
-        {filtered.map((req) => (
-          <Card key={req.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/request/${req.id}`)}>
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="font-mono text-xs text-gray-500">{req.request_number}</span>
-                    {getStatusBadge(req.status)}
-                    <Badge variant="outline" className="text-xs">{req.business_unit}</Badge>
-                    <Badge variant="outline" className="text-xs">{req.budget_type}</Badge>
-                  </div>
-                  <h3 className="font-semibold text-gray-900 mb-1">{req.title}</h3>
-                  <p className="text-sm text-gray-500 mb-2">{req.description?.substring(0, 100)}...</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                    <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{req.legal_entity?.name}</span>
-                    <span>📋 {req.department?.name || 'N/A'}</span>
-                    <span>🏢 {req.vendor || 'N/A'}</span>
-                    <span>📅 Due: {req.required_by_date ? format(new Date(req.required_by_date), 'yyyy-MM-dd') : 'N/A'}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(req.amount, req.currency)}</p>
-                  <p className="text-xs text-gray-400">{req.currency}</p>
-                  <div className="flex items-center gap-1 mt-2">
-                    {['PN', 'PN', 'SM', 'FH'].slice(0, req.budget_type === 'CAPEX' ? 4 : 2).map((initial, i) => (
-                      <Avatar key={i} className="w-6 h-6"><AvatarFallback className="text-[10px] bg-gray-200">{initial}</AvatarFallback></Avatar>
-                    ))}
-                  </div>
-                </div>
-              </div>
+        {filtered.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-gray-500">
+                {userRole === 'approver' 
+                  ? 'No pending approvals. Check back later!'
+                  : userRole === 'submitter'
+                  ? 'No requests found. Create your first request!'
+                  : 'No funding requests found.'}
+              </p>
             </CardContent>
           </Card>
-        ))}
-        
-        {filtered.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            No funding requests found. Create your first request!
-          </div>
+        ) : (
+          filtered.map((req) => (
+            <Card key={req.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/request/${req.id}`)}>
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="font-mono text-xs text-gray-500">{req.request_number}</span>
+                      {getStatusBadge(req.status)}
+                      <Badge variant="outline" className="text-xs">{req.business_unit}</Badge>
+                      <Badge variant="outline" className="text-xs">{req.budget_type}</Badge>
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-1">{req.title}</h3>
+                    <p className="text-sm text-gray-500 mb-2 line-clamp-2">{req.description}</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{req.legal_entity?.name}</span>
+                      <span>📋 {req.department?.name || 'N/A'}</span>
+                      <span>🏢 {req.vendor || 'N/A'}</span>
+                      <span>📅 Due: {req.required_by_date ? format(new Date(req.required_by_date), 'yyyy-MM-dd') : 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-gray-900">{formatCurrency(req.amount, req.currency)}</p>
+                    <p className="text-xs text-gray-400">{req.currency}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
     </div>
