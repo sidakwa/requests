@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabase';
+
 // Currency exchange rates (from currencies table)
 let exchangeRates: Record<string, number> = {
   USD: 1,
