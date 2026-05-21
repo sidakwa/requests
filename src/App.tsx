@@ -10,13 +10,11 @@ import Admin from "@/pages/Admin"
 import Profile from "@/pages/Profile"
 import ViewRequest from "@/pages/ViewRequest"
 import Login from "@/pages/Login"
+import AuthCallback from "@/pages/AuthCallback"   // ADD THIS
 
 function AppRoutes() {
-  const { user, loading, userRole } = useAuth()
+  const { user, loading } = useAuth()
 
-  console.log('AppRoutes - user:', user?.email, 'loading:', loading, 'role:', userRole)
-
-  // Show loading spinner while auth is initializing
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -28,26 +26,28 @@ function AppRoutes() {
     )
   }
 
-  // Show login page when not authenticated
-  if (!user) {
-    return <Login />
-  }
-
-  // Show main app when authenticated
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/my-requests" element={<MyRequests />} />
-        <Route path="/new-request" element={<NewRequest />} />
-        <Route path="/new" element={<Navigate to="/new-request" replace />} />
-        <Route path="/approvals" element={<ApprovalsInbox />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/request/:id" element={<ViewRequest />} />
-      </Routes>
-    </Layout>
+    <Routes>
+      {/* Public route — always accessible */}
+      <Route path="/auth/callback" element={<AuthCallback />} />   {/* ADD THIS */}
+
+      {/* Protected routes */}
+      {!user ? (
+        <Route path="*" element={<Login />} />
+      ) : (
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/my-requests" element={<MyRequests />} />
+          <Route path="/new-request" element={<NewRequest />} />
+          <Route path="/new" element={<Navigate to="/new-request" replace />} />
+          <Route path="/approvals" element={<ApprovalsInbox />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/request/:id" element={<ViewRequest />} />
+        </Route>
+      )}
+    </Routes>
   )
 }
 

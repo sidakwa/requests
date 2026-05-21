@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Inbox, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  FileText,
+  Inbox,
+  BarChart3,
   Settings,
   LogOut,
   CircleDollarSign,
@@ -59,7 +59,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
-        
+
         <nav className="flex-1 px-3 py-4 space-y-1">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href
@@ -98,7 +98,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {profile?.full_name || user?.email?.split('@')[0] || 'User'}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="text-xs text-gray-500 truncate capitalize">
                     {profile?.role || 'submitter'}
                   </p>
                 </div>

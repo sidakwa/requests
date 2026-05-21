@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
-  CheckCircle2, Clock, XCircle, FileText, 
+import {
+  CheckCircle2, Clock, XCircle, FileText,
   Plus, Search, RotateCcw, Building2, Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
@@ -32,10 +32,10 @@ interface FundingRequest {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   Approved: { label: 'Approved', color: 'text-green-700', bg: 'bg-green-100', icon: CheckCircle2 },
-  Pending: { label: 'Pending', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: Clock },
+  Pending:  { label: 'Pending',  color: 'text-yellow-700', bg: 'bg-yellow-100', icon: Clock },
   Returned: { label: 'Returned', color: 'text-orange-700', bg: 'bg-orange-100', icon: RotateCcw },
-  Rejected: { label: 'Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: XCircle },
-  Draft: { label: 'Draft', color: 'text-gray-700', bg: 'bg-gray-100', icon: FileText },
+  Rejected: { label: 'Rejected', color: 'text-red-700',    bg: 'bg-red-100',    icon: XCircle },
+  Draft:    { label: 'Draft',    color: 'text-gray-700',   bg: 'bg-gray-100',   icon: FileText },
 }
 
 export default function Dashboard() {
@@ -48,85 +48,67 @@ export default function Dashboard() {
   const [filterBU, setFilterBU] = useState('all')
   const [filterClass, setFilterClass] = useState('all')
 
-  // Debug logging
-  useEffect(() => {
-    console.log('Dashboard - userRole:', userRole, 'user:', user?.email, 'authLoading:', authLoading)
-  }, [userRole, user, authLoading])
+  const fetchIdRef = useRef(0)
 
-  // Wait for auth to load and role to be available before fetching data
   useEffect(() => {
-    if (!authLoading && user && userRole) {
-      console.log('Conditions met, fetching requests for role:', userRole)
-      fetchRequests()
-    } else if (!authLoading && !user) {
-      console.log('No user, setting loading false')
+    if (authLoading) return
+
+    if (!user || !userRole) {
       setLoading(false)
+      return
     }
-  }, [user, userRole, authLoading])
 
-  const fetchRequests = async () => {
-    setLoading(true)
-    try {
-      console.log('Fetching requests for role:', userRole)
-      
-      let query = supabase
-        .from('funding_requests')
-        .select(`
-          *,
-          department:departments(name),
-          legal_entity:legal_entities(name, code)
-        `)
-        .order('created_at', { ascending: false })
+    const currentFetchId = ++fetchIdRef.current
 
-      // Role-based filtering
-      switch (userRole) {
-        case 'submitter':
-          console.log('Filtering for submitter:', user?.email)
-          query = query.eq('requester_email', user?.email)
-          break
-          
-        case 'approver':
-          console.log('Filtering for approver:', user?.email)
+    const fetchRequests = async () => {
+      try {
+        let query = supabase
+          .from('funding_requests')
+          .select(`
+            *,
+            department:departments(name),
+            legal_entity:legal_entities(name, code)
+          `)
+          .order('created_at', { ascending: false })
+
+        if (userRole === 'submitter') {
+          query = query.eq('requester_email', user.email)
+        } else if (userRole === 'approver') {
           const { data: approvals } = await supabase
             .from('approval_actions')
             .select('request_id')
-            .eq('approver_email', user?.email)
+            .eq('approver_email', user.email)
+
+          const requestIds = approvals?.map(a => a.request_id) ?? []
           
-          const requestIds = approvals?.map(a => a.request_id) || []
-          console.log('Found approval request IDs:', requestIds)
+          if (currentFetchId !== fetchIdRef.current) return
           
           if (requestIds.length === 0) {
             setRequests([])
-            setLoading(false)
             return
           }
-          
           query = query.in('id', requestIds)
-          break
-          
-        case 'admin':
-          console.log('Admin view - showing all requests')
-          // Admins see everything
-          break
-          
-        default:
-          console.log('Defaulting to submitter filter')
-          query = query.eq('requester_email', user?.email)
-      }
-      
-      const { data, error } = await query
-      if (error) throw error
-      
-      console.log('Fetched requests:', data?.length)
-      setRequests(data || [])
-    } catch (err) {
-      console.error('Error fetching requests:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+        }
+        // Admin sees all requests - no filter needed
 
-  // Show loading state while auth is initializing or data is loading
+        const { data, error } = await query
+        if (error) throw error
+
+        if (currentFetchId !== fetchIdRef.current) return
+        setRequests(data ?? [])
+      } catch (err) {
+        console.error('Error fetching requests:', err)
+      } finally {
+        if (currentFetchId === fetchIdRef.current) {
+          setLoading(false)
+        }
+      }
+    }
+
+    setLoading(true)
+    fetchRequests()
+  }, [user, userRole, authLoading])
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -138,7 +120,6 @@ export default function Dashboard() {
     )
   }
 
-  // Show login prompt if not authenticated
   if (!user) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -152,9 +133,8 @@ export default function Dashboard() {
     )
   }
 
-  // Calculate stats
   const stats = {
-    total: requests.length,
+    total:    requests.length,
     approved: requests.filter(r => r.status === 'Approved').length,
     inReview: requests.filter(r => r.status === 'Pending').length,
     returned: requests.filter(r => r.status === 'Returned').length,
@@ -162,18 +142,17 @@ export default function Dashboard() {
     totalUSD: requests.reduce((sum, r) => {
       const rates: Record<string, number> = {
         USD: 1, ZAR: 0.054, EUR: 1.08, GBP: 1.27,
-        KES: 0.0077, MZN: 0.016, TZS: 0.00039, UGX: 0.00027
+        KES: 0.0077, MZN: 0.016, TZS: 0.00039, UGX: 0.00027,
       }
-      const rate = rates[r.currency] || 1
-      return sum + (r.amount * rate)
+      return sum + r.amount * (rates[r.currency] ?? 1)
     }, 0),
-    capex: requests.filter(r => r.budget_type === 'CAPEX').reduce((sum, r) => sum + (r.amount || 0), 0),
-    opex: requests.filter(r => r.budget_type === 'OPEX').reduce((sum, r) => sum + (r.amount || 0), 0),
+    capex: requests.filter(r => r.budget_type === 'CAPEX').reduce((s, r) => s + (r.amount || 0), 0),
+    opex:  requests.filter(r => r.budget_type === 'OPEX').reduce((s, r) => s + (r.amount || 0), 0),
   }
 
-  // Filter requests
   const filtered = requests.filter(r => {
-    if (search && !r.title?.toLowerCase().includes(search.toLowerCase()) && 
+    if (search &&
+        !r.title?.toLowerCase().includes(search.toLowerCase()) &&
         !r.request_number?.toLowerCase().includes(search.toLowerCase())) return false
     if (filterStatus !== 'all' && r.status !== filterStatus) return false
     if (filterBU !== 'all' && r.business_unit !== filterBU) return false
@@ -182,7 +161,7 @@ export default function Dashboard() {
   })
 
   const getStatusBadge = (status: string) => {
-    const config = STATUS_CONFIG[status] || STATUS_CONFIG.Pending
+    const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Pending
     const Icon = config.icon
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.bg} ${config.color}`}>
@@ -192,30 +171,24 @@ export default function Dashboard() {
   }
 
   const formatCurrency = (amount: number, currency: string) => {
-    const symbols: Record<string, string> = { 
-      USD: '$', EUR: '€', GBP: '£', ZAR: 'R', 
-      KES: 'KSh', MZN: 'MT', TZS: 'TSh', UGX: 'USh' 
+    const symbols: Record<string, string> = {
+      USD: '$', EUR: '€', GBP: '£', ZAR: 'R',
+      KES: 'KSh', MZN: 'MT', TZS: 'TSh', UGX: 'USh',
     }
-    const symbol = symbols[currency] || '$'
-    return `${symbol} ${amount.toLocaleString()}`
+    return `${symbols[currency] ?? '$'} ${amount.toLocaleString()}`
   }
 
   const getRoleMessage = () => {
     switch (userRole) {
-      case 'submitter':
-        return 'Showing your submitted requests'
-      case 'approver':
-        return 'Showing requests pending your approval'
-      case 'admin':
-        return 'Showing all requests (Admin View)'
-      default:
-        return 'Showing your requests'
+      case 'submitter': return 'Showing your submitted requests'
+      case 'approver':  return 'Showing requests pending your approval'
+      case 'admin':     return 'Showing all requests (Admin View)'
+      default:          return 'Showing your requests'
     }
   }
 
   return (
     <div className="p-6 space-y-5 max-w-full">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Funding Portal</h1>
@@ -226,7 +199,6 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <CardContent className="p-3"><p className="text-xs opacity-90">Total</p><p className="text-xl font-bold">{stats.total}</p></CardContent>
@@ -248,23 +220,26 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* CAPEX/OPEX Summary */}
       <div className="flex gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+          <div className="w-3 h-3 rounded-full bg-blue-500" />
           <span>CAPEX: R {(stats.capex / 1000).toFixed(0)}k</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+          <div className="w-3 h-3 rounded-full bg-green-500" />
           <span>OPEX: R {(stats.opex / 1000).toFixed(0)}k</span>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="Search title or ref..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Search title or ref..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
@@ -294,16 +269,14 @@ export default function Dashboard() {
         </Select>
       </div>
 
-      {/* Results Count */}
       <p className="text-sm text-gray-500">{filtered.length} results</p>
 
-      {/* Requests List */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <p className="text-gray-500">
-                {userRole === 'approver' 
+                {userRole === 'approver'
                   ? 'No pending approvals. Check back later!'
                   : userRole === 'submitter'
                   ? 'No requests found. Create your first request!'
@@ -312,8 +285,12 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ) : (
-          filtered.map((req) => (
-            <Card key={req.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate(`/request/${req.id}`)}>
+          filtered.map(req => (
+            <Card
+              key={req.id}
+              className="hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => navigate(`/request/${req.id}`)}
+            >
               <CardContent className="p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
