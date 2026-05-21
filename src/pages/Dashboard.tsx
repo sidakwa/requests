@@ -12,6 +12,7 @@ import {
   Plus, Search, RotateCcw, Building2, Loader2
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 interface FundingRequest {
   id: string
@@ -23,11 +24,12 @@ interface FundingRequest {
   budget_type: 'CAPEX' | 'OPEX'
   business_unit: string
   status: string
-  vendor: string
-  required_by_date: string
+  requester_email: string
   created_at: string
-  department?: { name: string }
-  legal_entity?: { name: string; code: string }
+  segment?: string
+  project_number?: string
+  department_id?: string
+  legal_entity_id?: string
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
@@ -51,53 +53,85 @@ export default function Dashboard() {
   const fetchIdRef = useRef(0)
 
   useEffect(() => {
-    if (authLoading) return
+    if (authLoading) {
+      console.log('Dashboard: Auth still loading...')
+      return
+    }
 
     if (!user || !userRole) {
+      console.log('Dashboard: No user or role yet')
       setLoading(false)
       return
     }
 
     const currentFetchId = ++fetchIdRef.current
+    console.log(`Dashboard: Fetching requests (ID: ${currentFetchId}) for role: ${userRole}`)
 
     const fetchRequests = async () => {
       try {
         let query = supabase
           .from('funding_requests')
-          .select(`
-            *,
-            department:departments(name),
-            legal_entity:legal_entities(name, code)
-          `)
+          .select('*')
           .order('created_at', { ascending: false })
 
         if (userRole === 'submitter') {
+          if (!user?.email) {
+            console.error('No user email for submitter filter')
+            setRequests([])
+            return
+          }
+          console.log('Filtering for submitter:', user.email)
           query = query.eq('requester_email', user.email)
-        } else if (userRole === 'approver') {
-          const { data: approvals } = await supabase
+        } 
+        else if (userRole === 'approver') {
+          if (!user?.email) {
+            console.error('No user email for approver filter')
+            setRequests([])
+            return
+          }
+          console.log('Filtering for approver:', user.email)
+          
+          const { data: approvals, error: approvalsError } = await supabase
             .from('approval_actions')
             .select('request_id')
             .eq('approver_email', user.email)
 
+          if (approvalsError) {
+            console.error('Error fetching approvals:', approvalsError)
+            toast.error('Failed to load approvals')
+            setRequests([])
+            return
+          }
+
           const requestIds = approvals?.map(a => a.request_id) ?? []
-          
+          console.log('Found approval request IDs:', requestIds)
+
           if (currentFetchId !== fetchIdRef.current) return
-          
+
           if (requestIds.length === 0) {
             setRequests([])
             return
           }
           query = query.in('id', requestIds)
+        } else {
+          console.log('Admin view - showing all requests')
         }
-        // Admin sees all requests - no filter needed
 
         const { data, error } = await query
-        if (error) throw error
-
+        
         if (currentFetchId !== fetchIdRef.current) return
+        
+        if (error) {
+          console.error('Error fetching requests:', error)
+          toast.error('Failed to load requests')
+          throw error
+        }
+
+        console.log(`Fetched ${data?.length || 0} requests`)
         setRequests(data ?? [])
       } catch (err) {
-        console.error('Error fetching requests:', err)
+        console.error('Error in fetchRequests:', err)
+        toast.error('An error occurred while loading requests')
       } finally {
         if (currentFetchId === fetchIdRef.current) {
           setLoading(false)
@@ -133,21 +167,16 @@ export default function Dashboard() {
     )
   }
 
+  // Calculate stats
   const stats = {
-    total:    requests.length,
+    total: requests.length,
     approved: requests.filter(r => r.status === 'Approved').length,
     inReview: requests.filter(r => r.status === 'Pending').length,
     returned: requests.filter(r => r.status === 'Returned').length,
     rejected: requests.filter(r => r.status === 'Rejected').length,
-    totalUSD: requests.reduce((sum, r) => {
-      const rates: Record<string, number> = {
-        USD: 1, ZAR: 0.054, EUR: 1.08, GBP: 1.27,
-        KES: 0.0077, MZN: 0.016, TZS: 0.00039, UGX: 0.00027,
-      }
-      return sum + r.amount * (rates[r.currency] ?? 1)
-    }, 0),
+    totalUSD: requests.reduce((sum, r) => sum + r.amount, 0),
     capex: requests.filter(r => r.budget_type === 'CAPEX').reduce((s, r) => s + (r.amount || 0), 0),
-    opex:  requests.filter(r => r.budget_type === 'OPEX').reduce((s, r) => s + (r.amount || 0), 0),
+    opex: requests.filter(r => r.budget_type === 'OPEX').reduce((s, r) => s + (r.amount || 0), 0),
   }
 
   const filtered = requests.filter(r => {
@@ -199,6 +228,7 @@ export default function Dashboard() {
         </Button>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
           <CardContent className="p-3"><p className="text-xs opacity-90">Total</p><p className="text-xl font-bold">{stats.total}</p></CardContent>
@@ -220,17 +250,19 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* CAPEX/OPEX Summary */}
       <div className="flex gap-4 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-blue-500" />
-          <span>CAPEX: R {(stats.capex / 1000).toFixed(0)}k</span>
+          <span>CAPEX: ${(stats.capex / 1000).toFixed(0)}k</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span>OPEX: R {(stats.opex / 1000).toFixed(0)}k</span>
+          <span>OPEX: ${(stats.opex / 1000).toFixed(0)}k</span>
         </div>
       </div>
 
+      {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -271,6 +303,7 @@ export default function Dashboard() {
 
       <p className="text-sm text-gray-500">{filtered.length} results</p>
 
+      {/* Requests List */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <Card>
@@ -280,8 +313,17 @@ export default function Dashboard() {
                   ? 'No pending approvals. Check back later!'
                   : userRole === 'submitter'
                   ? 'No requests found. Create your first request!'
-                  : 'No funding requests found.'}
+                  : 'No funding requests found. Create test data in Supabase.'}
               </p>
+              {userRole === 'admin' && filtered.length === 0 && (
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => window.open('https://supabase.com/dashboard', '_blank')}
+                >
+                  Add Test Data in Supabase
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -303,10 +345,10 @@ export default function Dashboard() {
                     <h3 className="font-semibold text-gray-900 mb-1">{req.title}</h3>
                     <p className="text-sm text-gray-500 mb-2 line-clamp-2">{req.description}</p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{req.legal_entity?.name}</span>
-                      <span>📋 {req.department?.name || 'N/A'}</span>
-                      <span>🏢 {req.vendor || 'N/A'}</span>
-                      <span>📅 Due: {req.required_by_date ? format(new Date(req.required_by_date), 'yyyy-MM-dd') : 'N/A'}</span>
+                      {req.segment && <span>📊 {req.segment}</span>}
+                      {req.project_number && <span>📋 Project: {req.project_number}</span>}
+                      <span>👤 {req.requester_email}</span>
+                      <span>📅 Created: {format(new Date(req.created_at), 'yyyy-MM-dd')}</span>
                     </div>
                   </div>
                   <div className="text-right">

@@ -7,27 +7,29 @@ import { Loader2, CheckCircle2, XCircle, Inbox } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
-interface ApprovalRequest {
+interface ApprovalAction {
   id: string
   request_id: string
   approver_email: string
-  status: string
-  step_order: number
+  action: string | null
+  comments: string | null
   created_at: string
-  funding_requests?: {
-    request_number: string
-    title: string
-    amount: number
-    currency: string
-    requester_email: string
-    status: string
-  }
+}
+
+interface FundingRequest {
+  id: string
+  request_number: string
+  title: string
+  amount: number
+  currency: string
+  requester_email: string
+  status: string
 }
 
 export default function Approvals() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
+  const [approvals, setApprovals] = useState<(ApprovalAction & { funding_request?: FundingRequest })[]>([])
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
@@ -40,13 +42,13 @@ export default function Approvals() {
     
     setLoading(true)
     try {
-      // First, get all pending approval actions for this user
+      // Get all approval actions for this user that haven't been acted upon (action is null)
       const { data: actions, error: actionsError } = await supabase
         .from('approval_actions')
         .select('*')
         .eq('approver_email', user.email)
-        .eq('status', 'pending')
-        .order('step_order', { ascending: true })
+        .is('action', null)  // Only get actions that haven't been approved/rejected yet
+        .order('created_at', { ascending: true })
       
       if (actionsError) {
         console.error('Error fetching approvals:', actionsError)
@@ -62,7 +64,7 @@ export default function Approvals() {
         return
       }
       
-      // Then get the associated funding requests
+      // Get the associated funding requests
       const requestIds = actions.map(a => a.request_id)
       const { data: requests, error: requestsError } = await supabase
         .from('funding_requests')
@@ -80,8 +82,8 @@ export default function Approvals() {
       // Combine the data
       const combined = actions.map(action => ({
         ...action,
-        funding_requests: requests?.find(req => req.id === action.request_id)
-      })).filter(item => item.funding_requests) // Only keep items with valid requests
+        funding_request: requests?.find(req => req.id === action.request_id)
+      })).filter(item => item.funding_request) // Only keep items with valid requests
       
       setApprovals(combined)
     } catch (error) {
@@ -92,15 +94,15 @@ export default function Approvals() {
     }
   }
 
-  const handleApprove = async (requestId: string, approvalId: string) => {
+  const handleApprove = async (approvalId: string, requestId: string) => {
     setProcessingId(approvalId)
     try {
-      // Update the approval action status
+      // Update the approval action with 'approved' action
       const { error: updateError } = await supabase
         .from('approval_actions')
         .update({ 
-          status: 'approved',
-          approved_at: new Date().toISOString()
+          action: 'approved',
+          comments: 'Approved via web portal'
         })
         .eq('id', approvalId)
       
@@ -109,9 +111,9 @@ export default function Approvals() {
       // Check if all approvals for this request are complete
       const { data: remainingApprovals } = await supabase
         .from('approval_actions')
-        .select('status')
+        .select('action')
         .eq('request_id', requestId)
-        .neq('status', 'approved')
+        .is('action', null)
       
       // If no pending approvals left, update the request status to Approved
       if (!remainingApprovals || remainingApprovals.length === 0) {
@@ -131,15 +133,15 @@ export default function Approvals() {
     }
   }
 
-  const handleReject = async (requestId: string, approvalId: string) => {
+  const handleReject = async (approvalId: string, requestId: string) => {
     setProcessingId(approvalId)
     try {
-      // Update the approval action status
+      // Update the approval action with 'rejected' action
       const { error: updateError } = await supabase
         .from('approval_actions')
         .update({ 
-          status: 'rejected',
-          approved_at: new Date().toISOString()
+          action: 'rejected',
+          comments: 'Rejected via web portal'
         })
         .eq('id', approvalId)
       
@@ -205,7 +207,7 @@ export default function Approvals() {
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-sm font-mono text-gray-500">
-                        {approval.funding_requests?.request_number}
+                        {approval.funding_request?.request_number}
                       </span>
                       <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full">
                         Pending Review
@@ -213,18 +215,18 @@ export default function Approvals() {
                     </div>
                     
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {approval.funding_requests?.title}
+                      {approval.funding_request?.title}
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
                       <p>
                         <span className="font-medium">Requester:</span>{' '}
-                        {approval.funding_requests?.requester_email}
+                        {approval.funding_request?.requester_email}
                       </p>
                       <p>
                         <span className="font-medium">Amount:</span>{' '}
                         <span className="font-semibold text-blue-600">
-                          {approval.funding_requests?.amount?.toLocaleString()} {approval.funding_requests?.currency}
+                          ${approval.funding_request?.amount?.toLocaleString()} {approval.funding_request?.currency}
                         </span>
                       </p>
                       <p>
@@ -232,15 +234,15 @@ export default function Approvals() {
                         {new Date(approval.created_at).toLocaleDateString()}
                       </p>
                       <p>
-                        <span className="font-medium">Approval Step:</span>{' '}
-                        Step {approval.step_order}
+                        <span className="font-medium">Current Status:</span>{' '}
+                        <span className="text-yellow-600">{approval.funding_request?.status}</span>
                       </p>
                     </div>
                   </div>
                   
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => handleApprove(approval.request_id, approval.id)}
+                      onClick={() => handleApprove(approval.id, approval.request_id)}
                       disabled={processingId === approval.id}
                       className="bg-green-600 hover:bg-green-700"
                     >
@@ -253,7 +255,7 @@ export default function Approvals() {
                     </Button>
                     
                     <Button
-                      onClick={() => handleReject(approval.request_id, approval.id)}
+                      onClick={() => handleReject(approval.id, approval.request_id)}
                       disabled={processingId === approval.id}
                       variant="destructive"
                     >

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Edit, Trash2, RefreshCw, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { CurrenciesTab } from './Admin/CurrenciesTab'
 
@@ -20,6 +20,8 @@ interface DoaRule {
   max_amount: number
   currency: string
   approval_level: string
+  approver_role: string
+  is_active: boolean
 }
 
 interface Department {
@@ -43,20 +45,20 @@ interface BusinessUnit {
 
 export default function Admin() {
   const { user, isAdmin } = useAuth()
-  const [activeTab, setActiveTab] = useState('doa')
+  const [activeTab, setActiveTab] = useState('dept')
   const [loading, setLoading] = useState(true)
-  
+
   // DoA Matrix state
   const [doaRules, setDoaRules] = useState<DoaRule[]>([])
   const [editingDoa, setEditingDoa] = useState<DoaRule | null>(null)
   const [showDoaDialog, setShowDoaDialog] = useState(false)
-  
+
   // Departments state
   const [departments, setDepartments] = useState<Department[]>([])
   const [editingDept, setEditingDept] = useState<Department | null>(null)
   const [showDeptDialog, setShowDeptDialog] = useState(false)
-  
-  // Legal Entities state - MOVED TO TOP
+
+  // Legal Entities state
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([])
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [editingEntity, setEditingEntity] = useState<LegalEntity | null>(null)
@@ -71,16 +73,16 @@ export default function Admin() {
     try {
       const [doaRes, deptRes, legalRes, buRes] = await Promise.all([
         supabase.from('doa_rules').select('*').order('min_amount'),
-        supabase.from('departments').select('*'),
+        supabase.from('departments').select('*').order('name'),
         supabase.from('legal_entities').select('*').order('name'),
         supabase.from('business_units').select('*')
       ])
-      
+
       if (doaRes.data) setDoaRules(doaRes.data)
       if (deptRes.data) setDepartments(deptRes.data)
       if (legalRes.data) setLegalEntities(legalRes.data)
       if (buRes.data) setBusinessUnits(buRes.data)
-      
+
     } catch (error) {
       console.error('Error fetching admin data:', error)
       toast.error('Failed to load admin data')
@@ -92,26 +94,28 @@ export default function Admin() {
   // Department CRUD
   const saveDepartment = async () => {
     if (!editingDept) return
-    
+
     try {
       const departmentData = {
         name: editingDept.name,
         chief_email: editingDept.chief_email || null,
         head_email: editingDept.head_email || null
       }
-      
+
+      let result
       if (editingDept.id) {
-        const { error } = await supabase
+        result = await supabase
           .from('departments')
           .update(departmentData)
           .eq('id', editingDept.id)
-        if (error) throw error
-        toast.success('Department updated')
+        if (!result.error) toast.success('Department updated')
       } else {
-        const { error } = await supabase.from('departments').insert(departmentData)
-        if (error) throw error
-        toast.success('Department created')
+        result = await supabase.from('departments').insert([departmentData])
+        if (!result.error) toast.success('Department created')
       }
+      
+      if (result.error) throw result.error
+      
       await fetchData()
       setShowDeptDialog(false)
       setEditingDept(null)
@@ -122,7 +126,7 @@ export default function Admin() {
   }
 
   const deleteDepartment = async (id: string) => {
-    if (!confirm('Delete this department?')) return
+    if (!confirm('Delete this department? This will affect all related requests.')) return
     try {
       const { error } = await supabase.from('departments').delete().eq('id', id)
       if (error) throw error
@@ -136,7 +140,7 @@ export default function Admin() {
   // Legal Entity CRUD
   const saveLegalEntity = async () => {
     if (!editingEntity) return
-    
+
     try {
       if (editingEntity.id) {
         const { error } = await supabase
@@ -150,11 +154,11 @@ export default function Admin() {
         if (error) throw error
         toast.success('Legal entity updated')
       } else {
-        const { error } = await supabase.from('legal_entities').insert({
+        const { error } = await supabase.from('legal_entities').insert([{
           code: editingEntity.code,
           name: editingEntity.name,
           business_unit: editingEntity.business_unit
-        })
+        }])
         if (error) throw error
         toast.success('Legal entity created')
       }
@@ -179,14 +183,52 @@ export default function Admin() {
     }
   }
 
+  // DoA Matrix CRUD
+  const saveDoaRule = async () => {
+    if (!editingDoa) return
+
+    try {
+      if (editingDoa.id) {
+        const { error } = await supabase
+          .from('doa_rules')
+          .update(editingDoa)
+          .eq('id', editingDoa.id)
+        if (error) throw error
+        toast.success('DoA rule updated')
+      } else {
+        const { error } = await supabase.from('doa_rules').insert([editingDoa])
+        if (error) throw error
+        toast.success('DoA rule created')
+      }
+      await fetchData()
+      setShowDoaDialog(false)
+      setEditingDoa(null)
+    } catch (error) {
+      console.error('Error saving DoA rule:', error)
+      toast.error('Failed to save DoA rule')
+    }
+  }
+
+  const deleteDoaRule = async (id: string) => {
+    if (!confirm('Delete this DoA rule?')) return
+    try {
+      const { error } = await supabase.from('doa_rules').delete().eq('id', id)
+      if (error) throw error
+      toast.success('DoA rule deleted')
+      await fetchData()
+    } catch (error) {
+      toast.error('Failed to delete DoA rule')
+    }
+  }
+
   const resetDoaToDefaults = async () => {
     const defaultRules = [
-      { min_amount: 0, max_amount: 10000, currency: 'USD', approval_level: 'Level 1 - Manager Approval' },
-      { min_amount: 10001, max_amount: 50000, currency: 'USD', approval_level: 'Level 2 - Department Head Approval' },
-      { min_amount: 50001, max_amount: 250000, currency: 'USD', approval_level: 'Level 3 - Chief/Executive Approval' },
-      { min_amount: 250001, max_amount: 999999999, currency: 'USD', approval_level: 'Level 4 - CFO/CEO Approval' },
+      { min_amount: 0, max_amount: 50000, currency: 'USD', approval_level: 'Level 1 - Line Manager', approver_role: 'Line Manager', is_active: true },
+      { min_amount: 50001, max_amount: 200000, currency: 'USD', approval_level: 'Level 2 - Department Head', approver_role: 'Department Head', is_active: true },
+      { min_amount: 200001, max_amount: 500000, currency: 'USD', approval_level: 'Level 3 - Chief Officer', approver_role: 'Chief Officer', is_active: true },
+      { min_amount: 500001, max_amount: 999999999, currency: 'USD', approval_level: 'Level 4 - CFO/CEO', approver_role: 'CFO/CEO', is_active: true },
     ]
-    
+
     try {
       await supabase.from('doa_rules').delete().neq('id', '')
       const { error } = await supabase.from('doa_rules').insert(defaultRules)
@@ -230,9 +272,15 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
-        <p className="text-gray-500 mt-1">Configure system settings and approval rules</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
+          <p className="text-gray-500 mt-1">Configure system settings and approval rules</p>
+        </div>
+        <Button onClick={fetchData} variant="outline" disabled={loading}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -252,25 +300,49 @@ export default function Admin() {
                 <CardTitle>Delegation of Authority (DoA) Matrix</CardTitle>
                 <CardDescription>Configure approval thresholds and required roles</CardDescription>
               </div>
-              <Button variant="outline" onClick={resetDoaToDefaults}>
-                <RefreshCw className="w-4 h-4 mr-2" /> Reset to Defaults
-              </Button>
+              <div className="space-x-2">
+                <Button variant="outline" onClick={resetDoaToDefaults}>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Reset to Defaults
+                </Button>
+                <Button onClick={() => { setEditingDoa({ id: '', min_amount: 0, max_amount: 0, currency: 'USD', approval_level: '', approver_role: '', is_active: true }); setShowDoaDialog(true) }}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Rule
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Amount Range</TableHead>
+                    <TableHead>Min Amount</TableHead>
+                    <TableHead>Max Amount</TableHead>
                     <TableHead>Currency</TableHead>
-                    <TableHead>Required Approvers</TableHead>
+                    <TableHead>Approval Level</TableHead>
+                    <TableHead>Approver Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {doaRules.map((rule) => (
                     <TableRow key={rule.id}>
-                      <TableCell>${rule.min_amount.toLocaleString()} - ${rule.max_amount.toLocaleString()}</TableCell>
+                      <TableCell>${rule.min_amount.toLocaleString()}</TableCell>
+                      <TableCell>${rule.max_amount.toLocaleString()}</TableCell>
                       <TableCell>{rule.currency}</TableCell>
                       <TableCell>{rule.approval_level}</TableCell>
+                      <TableCell>{rule.approver_role}</TableCell>
+                      <TableCell>
+                        <Badge className={rule.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
+                          {rule.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingDoa(rule); setShowDoaDialog(true) }}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteDoaRule(rule.id)}>
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -305,8 +377,18 @@ export default function Admin() {
                   {departments.map((dept) => (
                     <TableRow key={dept.id}>
                       <TableCell className="font-medium">{dept.name}</TableCell>
-                      <TableCell>{dept.head_email}</TableCell>
-                      <TableCell>{dept.chief_email}</TableCell>
+                      <TableCell>
+                        <span className="text-sm">{dept.head_email}</span>
+                        {dept.head_email === 'watson.kamanga@seacom.com' && (
+                          <Badge className="ml-2 bg-blue-100 text-blue-700">You</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{dept.chief_email}</span>
+                        {dept.chief_email === 'tiaan.taljaard@seacom.com' && (
+                          <Badge className="ml-2 bg-purple-100 text-purple-700">Chief</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => { setEditingDept(dept); setShowDeptDialog(true) }}>
                           <Edit className="w-4 h-4" />
@@ -344,7 +426,7 @@ export default function Admin() {
                       <h3 className="font-semibold text-lg mb-3 text-blue-700">{bu.name}</h3>
                       <div className="space-y-2">
                         {entities.map(entity => (
-                          <div key={entity.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <div key={entity.id} className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100">
                             <div>
                               <span className="font-mono text-xs text-gray-500">{entity.code}</span>
                               <p className="font-medium">{entity.name}</p>
@@ -388,7 +470,7 @@ export default function Admin() {
                 </div>
                 <p className="text-sm text-green-700 mt-1">Edge Function deployed: azure-sync-users</p>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
                   <Label>Tenant ID</Label>
@@ -411,7 +493,7 @@ export default function Admin() {
                   <Badge>Microsoft Graph API v1.0</Badge>
                 </div>
               </div>
-              
+
               <Button className="w-full" variant="outline">Test Connection</Button>
             </CardContent>
           </Card>
@@ -421,31 +503,167 @@ export default function Admin() {
       {/* Department Edit Dialog */}
       <Dialog open={showDeptDialog} onOpenChange={setShowDeptDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editingDept?.id ? 'Edit Department' : 'Add Department'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editingDept?.id ? 'Edit Department' : 'Add Department'}</DialogTitle>
+            <DialogDescription>
+              Configure department head and chief officer for approval workflow.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Department Name</Label><Input value={editingDept?.name || ''} onChange={(e) => setEditingDept({...editingDept!, name: e.target.value})} /></div>
-            <div><Label>Head Email</Label><Input type="email" value={editingDept?.head_email || ''} onChange={(e) => setEditingDept({...editingDept!, head_email: e.target.value})} /></div>
-            <div><Label>Chief Email</Label><Input type="email" value={editingDept?.chief_email || ''} onChange={(e) => setEditingDept({...editingDept!, chief_email: e.target.value})} /></div>
+            <div>
+              <Label>Department Name</Label>
+              <Input 
+                value={editingDept?.name || ''} 
+                onChange={(e) => setEditingDept({...editingDept!, name: e.target.value})}
+                placeholder="e.g., DevOps, Finance, Engineering"
+              />
+            </div>
+            <div>
+              <Label>Department Head Email</Label>
+              <Input 
+                type="email" 
+                value={editingDept?.head_email || ''} 
+                onChange={(e) => setEditingDept({...editingDept!, head_email: e.target.value})}
+                placeholder="head.department@seacom.com"
+              />
+              <p className="text-xs text-gray-500 mt-1">This person approves requests for this department</p>
+            </div>
+            <div>
+              <Label>Chief / Executive Email</Label>
+              <Input 
+                type="email" 
+                value={editingDept?.chief_email || ''} 
+                onChange={(e) => setEditingDept({...editingDept!, chief_email: e.target.value})}
+                placeholder="chief.department@seacom.com"
+              />
+              <p className="text-xs text-gray-500 mt-1">Senior executive for higher-value approvals</p>
+            </div>
           </div>
-          <DialogFooter><Button onClick={saveDepartment}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeptDialog(false)}>Cancel</Button>
+            <Button onClick={saveDepartment}>Save Department</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Legal Entity Edit Dialog */}
       <Dialog open={showEntityDialog} onOpenChange={setShowEntityDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editingEntity?.id ? 'Edit Legal Entity' : 'Add Legal Entity'}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editingEntity?.id ? 'Edit Legal Entity' : 'Add Legal Entity'}</DialogTitle>
+            <DialogDescription>
+              Configure legal entities for funding requests.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-4">
-            <div><Label>Code</Label><Input value={editingEntity?.code || ''} onChange={(e) => setEditingEntity({...editingEntity!, code: e.target.value})} /></div>
-            <div><Label>Name</Label><Input value={editingEntity?.name || ''} onChange={(e) => setEditingEntity({...editingEntity!, name: e.target.value})} /></div>
-            <div><Label>Business Unit</Label>
-              <select className="w-full p-2 border rounded-md" value={editingEntity?.business_unit || 'DI'} onChange={(e) => setEditingEntity({...editingEntity!, business_unit: e.target.value})}>
+            <div>
+              <Label>Code</Label>
+              <Input 
+                value={editingEntity?.code || ''} 
+                onChange={(e) => setEditingEntity({...editingEntity!, code: e.target.value})}
+                placeholder="e.g., SEA_KE, SEA_ZA"
+              />
+            </div>
+            <div>
+              <Label>Name</Label>
+              <Input 
+                value={editingEntity?.name || ''} 
+                onChange={(e) => setEditingEntity({...editingEntity!, name: e.target.value})}
+                placeholder="Full legal entity name"
+              />
+            </div>
+            <div>
+              <Label>Business Unit</Label>
+              <select 
+                className="w-full p-2 border rounded-md" 
+                value={editingEntity?.business_unit || 'DI'} 
+                onChange={(e) => setEditingEntity({...editingEntity!, business_unit: e.target.value})}
+              >
                 <option value="DI">Digital Infrastructure (DI)</option>
                 <option value="DS">Digital Services (DS)</option>
               </select>
             </div>
           </div>
-          <DialogFooter><Button onClick={saveLegalEntity}>Save</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEntityDialog(false)}>Cancel</Button>
+            <Button onClick={saveLegalEntity}>Save Entity</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DoA Rule Edit Dialog */}
+      <Dialog open={showDoaDialog} onOpenChange={setShowDoaDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingDoa?.id ? 'Edit DoA Rule' : 'Add DoA Rule'}</DialogTitle>
+            <DialogDescription>
+              Configure approval thresholds and required approval levels.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Min Amount (USD)</Label>
+                <Input 
+                  type="number"
+                  value={editingDoa?.min_amount || 0} 
+                  onChange={(e) => setEditingDoa({...editingDoa!, min_amount: parseFloat(e.target.value)})}
+                />
+              </div>
+              <div>
+                <Label>Max Amount (USD)</Label>
+                <Input 
+                  type="number"
+                  value={editingDoa?.max_amount || 0} 
+                  onChange={(e) => setEditingDoa({...editingDoa!, max_amount: parseFloat(e.target.value)})}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Currency</Label>
+              <select 
+                className="w-full p-2 border rounded-md"
+                value={editingDoa?.currency || 'USD'}
+                onChange={(e) => setEditingDoa({...editingDoa!, currency: e.target.value})}
+              >
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="ZAR">ZAR</option>
+              </select>
+            </div>
+            <div>
+              <Label>Approval Level</Label>
+              <Input 
+                value={editingDoa?.approval_level || ''} 
+                onChange={(e) => setEditingDoa({...editingDoa!, approval_level: e.target.value})}
+                placeholder="e.g., Level 1 - Line Manager"
+              />
+            </div>
+            <div>
+              <Label>Approver Role</Label>
+              <Input 
+                value={editingDoa?.approver_role || ''} 
+                onChange={(e) => setEditingDoa({...editingDoa!, approver_role: e.target.value})}
+                placeholder="e.g., Line Manager, Department Head"
+              />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <select 
+                className="w-full p-2 border rounded-md"
+                value={editingDoa?.is_active ? 'active' : 'inactive'}
+                onChange={(e) => setEditingDoa({...editingDoa!, is_active: e.target.value === 'active'})}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDoaDialog(false)}>Cancel</Button>
+            <Button onClick={saveDoaRule}>Save Rule</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

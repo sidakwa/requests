@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
 interface FundingRequest {
   id: string
@@ -24,20 +25,36 @@ export default function MyRequests() {
 
   useEffect(() => {
     const fetchMyRequests = async () => {
-      if (!user) return
-      
-      const { data, error } = await supabase
-        .from('funding_requests')
-        .select('id, request_number, title, amount, currency, status, created_at')
-        .eq('requester_email', user.email)
-        .order('created_at', { ascending: false })
-      
-      if (!error && data) {
-        setRequests(data)
+      if (!user) {
+        console.log("📭 No user yet, skipping fetch")
+        setLoading(false)
+        return
       }
-      setLoading(false)
+
+      console.log("🔍 Fetching requests for email:", user.email)
+
+      try {
+        const { data, error } = await supabase
+          .from('funding_requests')
+          .select('id, request_number, title, amount, currency, status, created_at')
+          .eq('requester_email', user.email)
+          .order('created_at', { ascending: false })
+
+        if (error) {
+          console.error('❌ MyRequests error:', error)
+          toast.error('Failed to load your requests')
+        } else {
+          console.log('✅ MyRequests data received:', data?.length || 0, 'records')
+          setRequests(data || [])
+        }
+      } catch (err) {
+        console.error('❌ Unexpected error:', err)
+        toast.error('An error occurred while loading your requests')
+      } finally {
+        setLoading(false)
+      }
     }
-    
+
     fetchMyRequests()
   }, [user])
 
@@ -50,10 +67,10 @@ export default function MyRequests() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-bold">My Requests</h1>
-        <p className="text-gray-500">View all your submitted funding requests</p>
+        <h1 className="text-3xl font-bold text-gray-900">My Requests</h1>
+        <p className="text-gray-500 mt-1">View all your submitted funding requests</p>
       </div>
       
       {requests.length === 0 ? (
@@ -75,10 +92,17 @@ export default function MyRequests() {
                   <div>
                     <p className="text-sm text-gray-500">{req.request_number}</p>
                     <h3 className="font-semibold mt-1">{req.title}</h3>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Submitted: {new Date(req.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">{req.amount.toLocaleString()} {req.currency}</p>
-                    <p className={`text-sm ${req.status === 'Approved' ? 'text-green-600' : req.status === 'Pending' ? 'text-yellow-600' : 'text-gray-600'}`}>
+                    <p className="text-lg font-bold">{req.amount.toLocaleString()} {req.currency}</p>
+                    <p className={`text-sm ${
+                      req.status === 'Approved' ? 'text-green-600' : 
+                      req.status === 'Pending' ? 'text-yellow-600' : 
+                      'text-gray-600'
+                    }`}>
                       {req.status}
                     </p>
                   </div>

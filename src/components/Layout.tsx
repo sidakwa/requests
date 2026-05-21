@@ -23,7 +23,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'My Requests', href: '/my-requests', icon: FileText },
   { name: 'Approvals Inbox', href: '/approvals', icon: Inbox },
   { name: 'New Request', href: '/new-request', icon: CircleDollarSign },
@@ -31,7 +31,11 @@ const navigation = [
   { name: 'Admin', href: '/admin', icon: Settings },
 ]
 
-export function Layout({ children }: { children: React.ReactNode }) {
+interface LayoutProps {
+  children: React.ReactNode
+}
+
+export function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const { user, profile, signOut } = useAuth()
 
