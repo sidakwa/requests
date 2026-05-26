@@ -349,18 +349,31 @@ export function useNewRequestForm({
 
       for (let i = 0; i < chain.length; i++) {
         const step = chain[i]
-        const { error: approvalError } = await supabase
+        await supabase
           .from('approval_actions')
-          .insert({
+          .upsert({
             request_id: newRequest.id,
             approver_email: step.email,
             action: 'pending',
             comments: null,
             created_at: new Date().toISOString()
-          })
-        
-        if (approvalError) {
-        }
+          }, { onConflict: 'request_id,approver_email', ignoreDuplicates: true })
+      }
+
+      // Notify the first approver — fire-and-forget so email failure doesn't block submission
+      if (chain.length > 0 && chain[0].email) {
+        supabase.functions.invoke('send-approval-email', {
+          body: {
+            requestId: newRequest.id,
+            requestNumber: requestNumber,
+            requestTitle: formData.title,
+            requestAmount: grandTotal,
+            requestCurrency: formData.currency,
+            requesterEmail: userEmail || '',
+            doaLevel: doaLevel,
+            approvers: [{ email: chain[0].email, role: chain[0].name, step: 1 }],
+          },
+        }).catch(() => {})
       }
 
       toast.success(`Request ${requestNumber} submitted successfully!`)

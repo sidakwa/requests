@@ -63,30 +63,12 @@ class DirectorySyncApi {
         }
       }
 
-      let syncedCount = 0
-      if (data?.users) {
-        for (const user of data.users) {
-          const { error: upsertError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: user.id,
-              email: user.mail || user.userPrincipalName,
-              full_name: user.displayName,
-              department: user.department,
-              azure_ad_id: user.id,
-              role: 'submitter',
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' })
-          
-          if (!upsertError) syncedCount++
-        }
-      }
-
       this.lastSyncTime = new Date()
-      return { 
-        success: true, 
-        usersSynced: syncedCount, 
-        message: `Synced ${syncedCount} users from Azure AD` 
+      const syncedCount = data?.usersSynced ?? 0
+      return {
+        success: true,
+        usersSynced: syncedCount,
+        message: `Synced ${syncedCount} users from Azure AD`,
       }
     } catch (error) {
       return { success: false, usersSynced: 0, message: 'Sync failed. Check Edge Function deployment.' }

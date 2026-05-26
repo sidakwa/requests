@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Plus, Edit, Trash2, RefreshCw, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { CurrenciesTab } from './Admin/CurrenciesTab'
+import { UsersTab } from './Admin/UsersTab'
 
 // Types
 interface DoaRule {
@@ -45,7 +46,7 @@ interface BusinessUnit {
 
 export default function Admin() {
   const { user, isAdmin } = useAuth()
-  const [activeTab, setActiveTab] = useState('dept')
+  const [activeTab, setActiveTab] = useState('users')
   const [loading, setLoading] = useState(true)
 
   // DoA Matrix state
@@ -280,13 +281,19 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="flex flex-wrap h-auto gap-1 w-full">
+          <TabsTrigger value="users">Users &amp; Roles</TabsTrigger>
           <TabsTrigger value="doa">DoA Matrix</TabsTrigger>
           <TabsTrigger value="dept">Dept Mapping</TabsTrigger>
           <TabsTrigger value="entities">Legal Entities</TabsTrigger>
           <TabsTrigger value="currencies">Currencies</TabsTrigger>
           <TabsTrigger value="integration">Integration</TabsTrigger>
         </TabsList>
+
+        {/* Users & Roles Tab */}
+        <TabsContent value="users">
+          <UsersTab />
+        </TabsContent>
 
         {/* DoA Matrix Tab */}
         <TabsContent value="doa">

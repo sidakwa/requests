@@ -151,68 +151,68 @@ export default function MyRequests() {
   }
 
   return (
-    <div className="space-y-6 p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
             My CAPEX Requests
           </h1>
-          <p className="text-gray-500 mt-1">Track and manage all your capital expenditure requests</p>
+          <p className="text-gray-500 mt-1 text-sm sm:text-base">Track and manage all your capital expenditure requests</p>
         </div>
-        <Button onClick={() => navigate('/new-request')} className="bg-blue-600 hover:bg-blue-700 shadow-lg">
+        <Button onClick={() => navigate('/new-request')} className="bg-blue-600 hover:bg-blue-700 shadow-lg self-start sm:self-auto">
           <FileText className="w-4 h-4 mr-2" />
-          New CAPEX Request
+          New Request
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm opacity-90">Total Requests</p>
-                <p className="text-3xl font-bold mt-2">{stats.total}</p>
+                <p className="text-xs sm:text-sm opacity-90">Total Requests</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-2">{stats.total}</p>
               </div>
-              <FileText className="w-8 h-8 opacity-75" />
+              <FileText className="w-6 h-6 sm:w-8 sm:h-8 opacity-75" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm opacity-90">Pending Review</p>
-                <p className="text-3xl font-bold mt-2">{stats.pending}</p>
+                <p className="text-xs sm:text-sm opacity-90">Pending Review</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-2">{stats.pending}</p>
                 <p className="text-xs opacity-75 mt-1">{formatCurrency(stats.pendingValue)}</p>
               </div>
-              <Clock className="w-8 h-8 opacity-75" />
+              <Clock className="w-6 h-6 sm:w-8 sm:h-8 opacity-75" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm opacity-90">Approved</p>
-                <p className="text-3xl font-bold mt-2">{stats.approved}</p>
+                <p className="text-xs sm:text-sm opacity-90">Approved</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-2">{stats.approved}</p>
               </div>
-              <CheckCircle2 className="w-8 h-8 opacity-75" />
+              <CheckCircle2 className="w-6 h-6 sm:w-8 sm:h-8 opacity-75" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm opacity-90">Total Value</p>
-                <p className="text-3xl font-bold mt-2">{formatCurrency(stats.totalValue)}</p>
+                <p className="text-xs sm:text-sm opacity-90">Total Value</p>
+                <p className="text-xl sm:text-3xl font-bold mt-2">{formatCurrency(stats.totalValue)}</p>
               </div>
-              <DollarSign className="w-8 h-8 opacity-75" />
+              <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 opacity-75" />
             </div>
           </CardContent>
         </Card>
@@ -342,22 +342,23 @@ export default function MyRequests() {
                         </div>
 
                         {/* Amount */}
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-blue-600">
-                            {formatCurrency(req.amount)}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">{req.currency}</p>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="mt-2"
+                        <div className="flex lg:flex-col items-center lg:items-end justify-between lg:justify-start gap-2">
+                          <div className="lg:text-right">
+                            <p className="text-xl sm:text-2xl font-bold text-blue-600">
+                              {formatCurrency(req.amount)}
+                            </p>
+                            <p className="text-xs text-gray-400">{req.currency}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={(e) => {
                               e.stopPropagation()
                               navigate(`/request/${req.id}`)
                             }}
                           >
                             <Eye className="w-4 h-4 mr-1" />
-                            View Details
+                            View
                           </Button>
                         </div>
                       </div>

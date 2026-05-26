@@ -193,16 +193,56 @@ export default function NewRequest() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
       <Toaster position="top-right" />
-      <div><h1 className="text-3xl font-bold text-gray-900">New CAPEX Request</h1><p className="text-gray-500 mt-1">SEACOM Capital & Operating Expenditure Approval Portal</p></div>
-      <div className="flex items-center gap-2">{steps.map((step, index) => (<div key={step} className="flex items-center gap-2"><div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors', index < currentStep ? 'bg-blue-600 text-white' : index === currentStep ? 'bg-blue-600 text-white ring-4 ring-blue-100' : 'bg-gray-200 text-gray-500')}>{index + 1}</div><span className={cn('text-sm hidden sm:inline', index <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-400')}>{step}</span>{index < steps.length - 1 && <div className={cn('h-0.5 w-8 mx-1', index < currentStep ? 'bg-blue-600' : 'bg-gray-200')} />}</div>))}</div>
-      <div className="flex justify-between items-center"><span className="text-sm text-gray-500">Step {currentStep + 1} of {steps.length}</span></div>
+
+      {/* Page heading */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">New CAPEX Request</h1>
+        <p className="text-gray-500 mt-1 text-sm sm:text-base">SEACOM Capital &amp; Operating Expenditure Approval Portal</p>
+      </div>
+
+      {/* Step progress */}
+      <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1">
+        {steps.map((step, index) => (
+          <div key={step} className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <div className={cn(
+              'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors',
+              index < currentStep ? 'bg-blue-600 text-white' :
+              index === currentStep ? 'bg-blue-600 text-white ring-4 ring-blue-100' :
+              'bg-gray-200 text-gray-500'
+            )}>
+              {index + 1}
+            </div>
+            <span className={cn(
+              'text-xs sm:text-sm whitespace-nowrap hidden xs:inline',
+              index <= currentStep ? 'text-gray-900 font-medium' : 'text-gray-400'
+            )}>
+              {step}
+            </span>
+            {index < steps.length - 1 && (
+              <div className={cn('h-0.5 w-4 sm:w-8 mx-0.5', index < currentStep ? 'bg-blue-600' : 'bg-gray-200')} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Current step label on mobile */}
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-gray-500">
+          Step {currentStep + 1} of {steps.length}
+          <span className="ml-2 font-medium text-gray-700 sm:hidden">— {steps[currentStep]}</span>
+        </span>
+      </div>
+
       {error && (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{error}</AlertDescription></Alert>)}
       {renderStep()}
       <div className="flex justify-between items-center pt-2">
         <Button variant="outline" onClick={prevStep} disabled={currentStep === 0}>Back</Button>
-        {currentStep === steps.length - 1 ? (<Button onClick={() => setShowConfirmDialog(true)} className="bg-blue-600 hover:bg-blue-700">Submit Request</Button>) : (<Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">Next</Button>)}
+        {currentStep === steps.length - 1
+          ? <Button onClick={() => setShowConfirmDialog(true)} className="bg-blue-600 hover:bg-blue-700">Submit Request</Button>
+          : <Button onClick={nextStep} className="bg-blue-600 hover:bg-blue-700">Next</Button>
+        }
       </div>
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>

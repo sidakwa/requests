@@ -1,8 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-application-name',
 }
 
 interface ApprovalEmailPayload {
@@ -241,43 +242,69 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // Require a valid Supabase JWT — prevents unauthenticated callers from
+  // Require a valid Supabase session JWT — prevents unauthenticated callers from
   // triggering arbitrary emails via the publicly-accessible function URL.
   const authHeader = req.headers.get('Authorization')
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   const token = authHeader?.replace('Bearer ', '')
-  if (!token || (token !== anonKey && token !== serviceKey)) {
+  if (!token) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+  if (authError || !user) {
     return new Response(
       JSON.stringify({ error: 'Unauthorized' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
+  let payload: ApprovalEmailPayload
   try {
-    const payload: ApprovalEmailPayload = await req.json()
+    payload = await req.json()
+  } catch {
+    return new Response(
+      JSON.stringify({ error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
-    if (!payload.approvers || payload.approvers.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No approvers provided' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+  if (!payload.approvers || payload.approvers.length === 0) {
+    return new Response(
+      JSON.stringify({ error: 'No approvers provided' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
-    // Get Azure token once, reuse for all emails
-    const token = await getAzureToken()
+  // Get Azure token once, reuse for all emails
+  let azureToken: string
+  try {
+    azureToken = await getAzureToken()
+  } catch (err) {
+    console.error('Azure token error:', err)
+    return new Response(
+      JSON.stringify({ error: 'Azure token error: ' + (err as Error).message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
+  try {
     const results = await Promise.allSettled(
       payload.approvers.map(async (approver) => {
         const subject = `[Action Required] ${payload.requestNumber} — ${payload.requestTitle}`
         const html = buildEmailHtml(payload, approver.role)
-        await sendEmail(token, approver.email, subject, html)
+        await sendEmail(azureToken, approver.email, subject, html)
         return approver.email
       })
     )
 
-    const sent     = results.filter(r => r.status === 'fulfilled').map(r => (r as PromiseFulfilledResult<string>).value)
-    const failed   = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason?.message)
+    const sent   = results.filter(r => r.status === 'fulfilled').map(r => (r as PromiseFulfilledResult<string>).value)
+    const failed = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason?.message)
 
     console.log(`Emails sent: ${sent.join(', ')}`)
     if (failed.length) console.error(`Failed: ${failed.join(', ')}`)
@@ -286,11 +313,10 @@ serve(async (req) => {
       JSON.stringify({ sent, failed }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-
   } catch (err) {
-    console.error('Edge function error:', err)
+    console.error('Send email error:', err)
     return new Response(
-      JSON.stringify({ error: (err as Error).message }),
+      JSON.stringify({ error: 'Send email error: ' + (err as Error).message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

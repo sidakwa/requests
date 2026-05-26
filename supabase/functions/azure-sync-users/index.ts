@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // These secrets are now stored in Supabase secrets
 const AZURE_TENANT_ID = Deno.env.get('AZURE_TENANT_ID')
@@ -74,19 +75,39 @@ serve(async (req) => {
         'https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,department,jobTitle&$top=999',
         { headers: { 'Authorization': `Bearer ${accessToken}` } }
       )
-      
+
       const usersData = await usersResponse.json()
-      
+
       if (usersData.error) {
         throw new Error(usersData.error.message)
       }
-      
+
+      const azureUsers: any[] = usersData.value || []
+
+      // Upsert profiles server-side using the service role key (bypasses RLS)
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+
+      let syncedCount = 0
+      for (const user of azureUsers) {
+        const { error: upsertError } = await supabaseAdmin
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            email: user.mail || user.userPrincipalName,
+            full_name: user.displayName,
+            department: user.department ?? null,
+            azure_ad_id: user.id,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' })
+
+        if (!upsertError) syncedCount++
+      }
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          users: usersData.value || [],
-          count: usersData.value?.length || 0 
-        }),
+        JSON.stringify({ success: true, usersSynced: syncedCount, count: azureUsers.length }),
         { headers: { 'Content-Type': 'application/json' } }
       )
     }

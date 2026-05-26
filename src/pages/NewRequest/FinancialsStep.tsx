@@ -86,8 +86,9 @@ export function FinancialsStep({
         </div>
 
         {/* Capex Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+        <p className="text-xs text-gray-400 mb-2 sm:hidden">← Scroll to see all years</p>
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <table className="min-w-max w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="p-3 text-left font-semibold text-gray-700 w-40">Line Item</th>

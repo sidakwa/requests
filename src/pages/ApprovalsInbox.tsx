@@ -32,6 +32,8 @@ interface ApprovalRequest {
   status: string
   current_step?: number
   total_steps?: number
+  requester_email?: string
+  doa_level?: string
 }
 
 export default function ApprovalsInbox() {
@@ -73,7 +75,7 @@ export default function ApprovalsInbox() {
       const requestIds = approvalsData.map(a => a.request_id)
       const { data: requestsData, error: reqError } = await supabase
         .from('funding_requests')
-        .select('id, request_number, title, description, amount, currency, budget_type, business_unit, status, current_step, total_steps')
+        .select('id, request_number, title, description, amount, currency, budget_type, business_unit, status, current_step, total_steps, requester_email, doa_level')
         .in('id', requestIds)
       
       if (reqError) throw reqError
@@ -95,6 +97,8 @@ export default function ApprovalsInbox() {
           status: request.status,
           current_step: request.current_step,
           total_steps: request.total_steps,
+          requester_email: request.requester_email,
+          doa_level: request.doa_level,
         }
       }).filter(Boolean) as ApprovalRequest[]
       
@@ -109,7 +113,7 @@ export default function ApprovalsInbox() {
   // Function to advance the workflow to the next approver
   const advanceWorkflow = async (requestId: string, currentStep: number, totalSteps: number) => {
     const nextStep = currentStep + 1
-    
+
     if (nextStep > totalSteps) {
       // All steps completed - mark fully approved.
       // current_step filter acts as an optimistic lock — prevents a stale client
@@ -128,14 +132,15 @@ export default function ApprovalsInbox() {
     } else {
       const { data: request, error: fetchError } = await supabase
         .from('funding_requests')
-        .select('approval_chain')
+        .select('approval_chain, request_number, title, amount, currency, requester_email, doa_level')
         .eq('id', requestId)
         .single()
 
       if (fetchError) throw fetchError
 
       const approvalChain = request.approval_chain || []
-      const nextApprover = approvalChain[nextStep - 1]?.email
+      const nextApproverEntry = approvalChain[nextStep - 1]
+      const nextApprover = nextApproverEntry?.email
 
       // current_step optimistic lock — only advances if DB is at the expected step.
       const { error: updateError } = await supabase
@@ -148,6 +153,22 @@ export default function ApprovalsInbox() {
         .eq('current_step', currentStep)
 
       if (updateError) throw updateError
+
+      // Notify the next approver — fire-and-forget so email failure doesn't block the workflow
+      if (nextApprover) {
+        supabase.functions.invoke('send-approval-email', {
+          body: {
+            requestId,
+            requestNumber: request.request_number,
+            requestTitle: request.title,
+            requestAmount: request.amount,
+            requestCurrency: request.currency,
+            requesterEmail: request.requester_email || '',
+            doaLevel: request.doa_level || '',
+            approvers: [{ email: nextApprover, role: nextApproverEntry?.name || 'Approver', step: nextStep }],
+          },
+        }).catch(() => {})
+      }
     }
   }
 
