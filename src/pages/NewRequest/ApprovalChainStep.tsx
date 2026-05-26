@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, Clock, XCircle, User, Mail, Users, AlertCircle } from 'lucide-react'
 
-interface ApprovalStep {
+export interface ApprovalStep {
   step: number
   name: string
   email?: string

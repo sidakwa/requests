@@ -412,13 +412,13 @@ export default function Reports() {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
-            <ComposedChart>
+            <ComposedChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(value) => formatUSD(value)} />
               <Tooltip formatter={(value: number) => formatUSD(value)} />
               <Legend />
-              <Bar data={monthlyData} dataKey="actual" fill="#3B82F6" name="Actual Spend" barSize={40} />
+              <Bar dataKey="actual" fill="#3B82F6" name="Actual Spend" barSize={40} />
               <Line data={forecastData} dataKey="forecast" stroke="#F59E0B" name="Forecast (5% growth)" strokeWidth={2} dot={{ r: 4 }} />
               <Area data={forecastData} dataKey="upperBound" stroke="#FCD34D" fill="#FEF3C7" name="Upper Bound" opacity={0.3} />
               <Area data={forecastData} dataKey="lowerBound" stroke="#FEF3C7" fill="#FEF3C7" name="Lower Bound" opacity={0.3} />

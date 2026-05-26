@@ -31,7 +31,7 @@ interface FundingRequest {
   current_step?: number
   total_steps?: number
   current_approver_email?: string
-  department?: { name: string }
+  department?: { name: string } | { name: string }[]
 }
 
 export default function MyRequests() {
@@ -324,7 +324,7 @@ export default function MyRequests() {
                           <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                             <div className="flex items-center gap-1">
                               <Building2 className="w-4 h-4" />
-                              <span>{req.department?.name || 'Unassigned'}</span>
+                              <span>{(Array.isArray(req.department) ? req.department[0] : req.department)?.name || 'Unassigned'}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <TrendingUp className="w-4 h-4" />

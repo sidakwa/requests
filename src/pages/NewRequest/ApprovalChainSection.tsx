@@ -3,7 +3,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2, XCircle, Mail, ShieldCheck } from 'lucide-react'
 import { format } from 'date-fns'
-import { ApprovalStep, FormData } from './useNewRequestForm'
+import { ApprovalStep } from './ApprovalChainStep'
+import { FormData } from './useNewRequestForm'
 
 interface ApprovalChainSectionProps {
   approvalChain: ApprovalStep[]
@@ -86,7 +87,7 @@ export function ApprovalChainSection({
                   <div className="flex-1 pb-2 min-w-0">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <h4 className={`font-semibold text-sm ${step.required ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {step.role}
+                        {step.name}
                       </h4>
                       {step.required ? (
                         <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
@@ -100,15 +101,15 @@ export function ApprovalChainSection({
                     </div>
 
                     {/* Approver email */}
-                    {step.required && step.approver_email && (
+                    {step.required && step.email && (
                       <div className="flex items-center gap-1.5 mt-1">
                         <Mail className="w-3 h-3 text-gray-400 flex-shrink-0" />
                         <span className="text-xs text-blue-600 font-mono truncate">
-                          {step.approver_email}
+                          {step.email}
                         </span>
                       </div>
                     )}
-                    {step.required && !step.approver_email && (
+                    {step.required && !step.email && (
                       <p className="text-xs text-amber-600 mt-1">⚠ No approver mapped for this department</p>
                     )}
                   </div>
@@ -121,12 +122,12 @@ export function ApprovalChainSection({
           <div className="mt-5 bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-blue-700 font-semibold mb-1 uppercase tracking-wide">Approval path</p>
             <p className="text-sm text-blue-800">
-              {requiredSteps.map(s => s.role).join(' → ')}
+              {requiredSteps.map(s => s.name).join(' → ')}
             </p>
             <div className="mt-2 space-y-0.5">
               {requiredSteps.map(s => (
                 <p key={s.step} className="text-xs text-blue-600 font-mono">
-                  Step {s.step}: {s.approver_email || s.role}
+                  Step {s.step}: {s.email || s.name}
                 </p>
               ))}
             </div>

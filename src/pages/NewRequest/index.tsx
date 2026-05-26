@@ -112,7 +112,7 @@ export default function NewRequest() {
             onCurrencyChange={(v) => setFormData({ ...formData, currency: v })}
             onLineItemChange={handleLineItemChange}
             onQuotationChange={setQuotationValue}
-            onGrandTotalChange={() => {}}
+
             calcLineItemTotal={calcLineItemTotal}
             lineItemsTotal={lineItemsTotal}
             grandTotal={grandTotal}

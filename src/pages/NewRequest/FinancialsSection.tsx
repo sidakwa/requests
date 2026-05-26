@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DollarSign, TrendingUp, Plus, Trash2 } from 'lucide-react'
 import { useCurrencies } from '@/hooks/useCurrencies'
-import { LineItem } from './useNewRequestForm'
+import { CapexLineItem } from './useNewRequestForm'
 
 interface FinancialsSectionProps {
   formData: any

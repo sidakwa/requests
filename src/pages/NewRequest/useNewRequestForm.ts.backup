@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -26,47 +26,29 @@ export interface FormData {
   project_number: string
 }
 
-export interface ApprovalStep {
-  step: number
-  role: string
-  approver_email: string | null
-  required: boolean
-  doa_level: number
+// Currency conversion rates
+const getExchangeRate = (currency: string): number => {
+  const rates: Record<string, number> = {
+    USD: 1, ZAR: 0.054, EUR: 1.08, GBP: 1.27,
+    KES: 0.0077, MZN: 0.016, TZS: 0.00039, UGX: 0.00027
+  }
+  return rates[currency] || 1
 }
 
-// ── DoA level parsing ─────────────────────────────────────────────
-// Matches: "Level 1 - Manager Approval", "Level 2 - Department Head Approval" etc.
-export const parseDoALevel = (approvalLevel: string): number => {
-  const match = approvalLevel.match(/Level (\d+)/)
-  return match ? parseInt(match[1]) : 1
-}
-
-// ── Department head/chief mapping ─────────────────────────────────
-// These should ideally come from your `departments` table.
-// Kept here as a fallback map matching your admin panel config.
-export const DEPT_APPROVERS: Record<string, { head: string; chief: string }> = {
-  'Data Science':      { head: 'head.ds@seacom.com',            chief: 'chief.ds@seacom.com' },
-  'Engineering':       { head: 'head.engineering@seacom.com',   chief: 'chief.engineering@seacom.com' },
-  'Finance':           { head: 'head.finance@seacom.com',       chief: 'chief.finance@seacom.com' },
-  'Operations':        { head: 'head.operations@seacom.com',    chief: 'chief.operations@seacom.com' },
-  'Sales':             { head: 'head.sales@seacom.com',         chief: 'chief.sales@seacom.com' },
-  'Marketing':         { head: 'head.marketing@seacom.com',     chief: 'chief.marketing@seacom.com' },
-  'Human Resources':   { head: 'head.hr@seacom.com',            chief: 'chief.hr@seacom.com' },
-  'Legal':             { head: 'head.legal@seacom.com',         chief: 'chief.legal@seacom.com' },
-  'Procurement':       { head: 'head.procurement@seacom.com',   chief: 'chief.procurement@seacom.com' },
-  'DevOps':            { head: 'watson.kamanga@seacom.com',     chief: 'tiaan.taljaard@seacom.com' },
+const convertToUSD = (amount: number, currency: string): number => {
+  return amount * getExchangeRate(currency)
 }
 
 const DEFAULT_CAPEX_LINES: CapexLineItem[] = [
-  { name: 'Materials',          years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Labour',             years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Import Duties',      years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Accommodation',      years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Engineering',        years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Risk Allowance',     years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Planning',           years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Materials', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Labour', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Import Duties', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Accommodation', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Engineering', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Risk Allowance', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Planning', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
   { name: 'Project Management', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
-  { name: 'Support',            years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
+  { name: 'Support', years: { '2026': 0, '2027': 0, '2028': 0, '2029': 0, '2030': 0 } },
 ]
 
 const STEPS = ['Request Details', 'Financials', 'Attachments', 'Approval Chain', 'Review & Submit']
@@ -74,21 +56,95 @@ const STEPS = ['Request Details', 'Financials', 'Attachments', 'Approval Chain',
 interface UseNewRequestFormProps {
   doaRules: DoaRule[]
   businessUnits: BusinessUnit[]
-  legalEntities: LegalEntity[]
-  departments: { id: string; name: string }[]
   filterEntitiesByBU: (buCode: string) => void
   userId: string | undefined
   userEmail: string | undefined
+  legalEntities: LegalEntity[]
+  departments: Department[]
+  getDepartmentApprovers: (departmentId: string) => { headEmail: string; chiefEmail: string } | null
+}
+
+import { Department } from './useNewRequestData'
+
+// Build approval chain based on amount using department approvers
+const buildApprovalChain = (
+  amount: number, 
+  departmentId: string, 
+  businessUnit: string,
+  getDepartmentApprovers: (departmentId: string) => { headEmail: string; chiefEmail: string } | null
+): any[] => {
+  const chain = []
+  const approvers = getDepartmentApprovers(departmentId)
+  
+  const headEmail = approvers?.headEmail || 'dept.head@seacom.com'
+  const chiefEmail = approvers?.chiefEmail || 'chief@seacom.com'
+  
+  // Level 1: $0 - $10,000 - Department Head only
+  if (amount <= 10000) {
+    chain.push({ step: 1, name: 'Department Head', email: headEmail, role: 'dept_head', required: true })
+  } 
+  // Level 2: $10,001 - $50,000 - Department Head → Chief/Executive
+  else if (amount <= 50000) {
+    chain.push({ step: 1, name: 'Department Head', email: headEmail, role: 'dept_head', required: true })
+    chain.push({ step: 2, name: 'Chief/Executive', email: chiefEmail, role: 'chief', required: true })
+  } 
+  // Level 3: $50,001 - $100,000 - Department Head → Chief/Executive → Head of CIC
+  else if (amount <= 100000) {
+    chain.push({ step: 1, name: 'Department Head', email: headEmail, role: 'dept_head', required: true })
+    chain.push({ step: 2, name: 'Chief/Executive', email: chiefEmail, role: 'chief', required: true })
+    chain.push({ step: 3, name: 'Head of CIC', email: 'head.cic@seacom.com', role: 'cic', required: true })
+  } 
+  // Level 4: $100,001+ - Full chain
+  else {
+    chain.push({ step: 1, name: 'Department Head', email: headEmail, role: 'dept_head', required: true })
+    chain.push({ step: 2, name: 'Chief/Executive', email: chiefEmail, role: 'chief', required: true })
+    chain.push({ step: 3, name: 'Head of CIC', email: 'head.cic@seacom.com', role: 'cic', required: true })
+    chain.push({ step: 4, name: 'Finance Review', email: 'finance@seacom.com', role: 'finance', required: true })
+    chain.push({ step: 5, name: 'CFO/CEO', email: 'cfo@seacom.com', role: 'cfo', required: true })
+  }
+  
+  return chain
+}
+
+// Generate project number with month
+const generateProjectNumber = async (businessUnit: string, entityCode: string): Promise<string> => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  
+  const { data: lastRequest, error } = await supabase
+    .from('funding_requests')
+    .select('project_number')
+    .ilike('project_number', `${businessUnit}-${entityCode}_${year}-${month}-%`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  
+  if (error) {
+    console.error('Error fetching last project number:', error)
+    return `${businessUnit}-${entityCode}_${year}-${month}-001`
+  }
+  
+  let sequence = 1
+  if (lastRequest && lastRequest.length > 0 && lastRequest[0].project_number) {
+    const parts = lastRequest[0].project_number.split('-')
+    const lastSeq = parseInt(parts[parts.length - 1])
+    if (!isNaN(lastSeq)) {
+      sequence = lastSeq + 1
+    }
+  }
+  
+  return `${businessUnit}-${entityCode}_${year}-${month}-${String(sequence).padStart(3, '0')}`
 }
 
 export function useNewRequestForm({
   doaRules,
   businessUnits,
-  legalEntities,
-  departments,
   filterEntitiesByBU,
   userId,
   userEmail,
+  legalEntities,
+  departments,
+  getDepartmentApprovers,
 }: UseNewRequestFormProps) {
   const navigate = useNavigate()
 
@@ -119,15 +175,16 @@ export function useNewRequestForm({
     project_number: '',
   })
 
-  // Sync filtered legal entities when BU changes
-  useEffect(() => {
-    if (formData.business_unit) {
-      filterEntitiesByBU(formData.business_unit)
-      setFormData(prev => ({ ...prev, legal_entity_id: '', project_number: '' }))
-    }
-  }, [formData.business_unit])
+  const prevBusinessUnitRef = useRef(formData.business_unit)
 
-  // Sync segment name when BU changes
+  useEffect(() => {
+    if (formData.business_unit && formData.business_unit !== prevBusinessUnitRef.current) {
+      prevBusinessUnitRef.current = formData.business_unit
+      filterEntitiesByBU(formData.business_unit)
+      setFormData(prev => ({ ...prev, legal_entity_id: '' }))
+    }
+  }, [formData.business_unit, filterEntitiesByBU])
+
   useEffect(() => {
     if (formData.business_unit && businessUnits.length > 0) {
       const selectedBU = businessUnits.find(bu => bu.code === formData.business_unit)
@@ -135,130 +192,99 @@ export function useNewRequestForm({
     }
   }, [formData.business_unit, businessUnits])
 
-  // Auto-generate project number when BU + legal entity are both selected
   useEffect(() => {
-    const generateProjectNumber = async () => {
-      if (!formData.business_unit || !formData.legal_entity_id || legalEntities.length === 0) return
-
-      setGeneratingProjectNumber(true)
-      try {
-        const selectedEntity = legalEntities.find(e => e.id === formData.legal_entity_id)
-        if (!selectedEntity) return
-
-        const year = new Date().getFullYear()
-        const prefix = `${formData.business_unit}-${selectedEntity.code}-${year}-`
-
-        const { data: lastRequest } = await supabase
-          .from('funding_requests')
-          .select('project_number')
-          .ilike('project_number', `${prefix}%`)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        let sequence = 1
-        if (lastRequest && lastRequest.length > 0 && lastRequest[0].project_number) {
-          const parts = lastRequest[0].project_number.split('-')
-          const lastSeq = parseInt(parts[parts.length - 1])
-          if (!isNaN(lastSeq)) sequence = lastSeq + 1
+    const updateProjectNumber = async () => {
+      if (formData.business_unit && formData.legal_entity_id && legalEntities.length > 0) {
+        setGeneratingProjectNumber(true)
+        try {
+          const selectedEntity = legalEntities.find(e => e.id === formData.legal_entity_id)
+          if (selectedEntity) {
+            const projectNumber = await generateProjectNumber(formData.business_unit, selectedEntity.code)
+            setFormData(prev => ({ ...prev, project_number: projectNumber }))
+          }
+        } catch (err) {
+          console.error('Error generating project number:', err)
+        } finally {
+          setGeneratingProjectNumber(false)
         }
-
-        const projectNumber = `${prefix}${String(sequence).padStart(3, '0')}`
-        setFormData(prev => ({ ...prev, project_number: projectNumber }))
-      } catch (err) {
-        console.error('Error generating project number:', err)
-      } finally {
-        setGeneratingProjectNumber(false)
       }
     }
-
-    generateProjectNumber()
+    updateProjectNumber()
   }, [formData.business_unit, formData.legal_entity_id, legalEntities])
 
-  // ── Calculations ──────────────────────────────────────────────
   const calcLineItemTotal = (item: CapexLineItem) =>
     Object.values(item.years).reduce((sum, v) => sum + v, 0)
 
   const calcGrandTotal = () =>
     capexLineItems.reduce((sum, item) => sum + calcLineItemTotal(item), 0) + quotationValue
 
-  // ── DoA resolution ────────────────────────────────────────────
-  // Finds the matching DoA rule and returns its approval_level string
-  const calcDoARule = (): DoaRule | null => {
-    const amount = Number(formData.amount)
-    return doaRules.find(
-      r =>
-        amount >= Number(r.min_amount) &&
-        amount <= Number(r.max_amount) &&
-        r.currency === formData.currency
-    ) || null
+  const grandTotal = calcGrandTotal()
+
+  const calcDoALevel = () => {
+    const amount = Number(grandTotal)
+    if (!doaRules || doaRules.length === 0) {
+      if (amount <= 10000) return 'Level 1 - Department Head Approval'
+      if (amount <= 50000) return 'Level 2 - Chief/Executive Approval'
+      if (amount <= 100000) return 'Level 3 - Head of CIC'
+      return 'Level 4 - Board/CFO Approval'
+    }
+    const rule = doaRules.find(
+      r => amount >= Number(r.min_amount) && amount <= Number(r.max_amount) && r.currency === formData.currency
+    )
+    return rule?.approval_level || 'Level 1 - Department Head Approval'
   }
 
-  const calcDoALevel = (): string => {
-    const rule = calcDoARule()
-    return rule?.approval_level || 'Level 1 - Manager Approval'
+  const approvalChain = () => {
+    const amount = grandTotal
+    
+    // Level 1: $0 - $10,000 - Department Head only
+    if (amount <= 10000) {
+      return [
+        { step: 1, name: 'Department Head', required: true },
+        { step: 2, name: 'Chief/Executive', required: false },
+        { step: 3, name: 'Head of CIC', required: false },
+        { step: 4, name: 'Finance Review', required: false },
+        { step: 5, name: 'CFO/CEO', required: false },
+      ]
+    } 
+    // Level 2: $10,001 - $50,000 - Department Head → Chief/Executive
+    else if (amount <= 50000) {
+      return [
+        { step: 1, name: 'Department Head', required: true },
+        { step: 2, name: 'Chief/Executive', required: true },
+        { step: 3, name: 'Head of CIC', required: false },
+        { step: 4, name: 'Finance Review', required: false },
+        { step: 5, name: 'CFO/CEO', required: false },
+      ]
+    } 
+    // Level 3: $50,001 - $100,000 - Department Head → Chief/Executive → Head of CIC
+    else if (amount <= 100000) {
+      return [
+        { step: 1, name: 'Department Head', required: true },
+        { step: 2, name: 'Chief/Executive', required: true },
+        { step: 3, name: 'Head of CIC', required: true },
+        { step: 4, name: 'Finance Review', required: false },
+        { step: 5, name: 'CFO/CEO', required: false },
+      ]
+    } 
+    // Level 4: $100,001+ - Full chain
+    else {
+      return [
+        { step: 1, name: 'Department Head', required: true },
+        { step: 2, name: 'Chief/Executive', required: true },
+        { step: 3, name: 'Head of CIC', required: true },
+        { step: 4, name: 'Finance Review', required: true },
+        { step: 5, name: 'CFO/CEO', required: true },
+      ]
+    }
   }
 
-  // ── Approval chain builder ────────────────────────────────────
-  // Builds the chain strictly from the DoA level number.
-  // Level 1 → Line Manager only
-  // Level 2 → + Department Head
-  // Level 3 → + Chief / Executive
-  // Level 4 → + Finance Review + CFO / CEO
-  const buildApprovalChain = (): ApprovalStep[] => {
-    const doaLevel = parseDoALevel(calcDoALevel())
-
-    // Resolve department name for approver lookup
-    const dept = departments.find(d => d.id === formData.department_id)
-    const deptName = dept?.name || ''
-    const approvers = DEPT_APPROVERS[deptName] || null
-
-    return [
-      {
-        step: 1,
-        role: 'Line Manager',
-        approver_email: userEmail || null,   // requester's manager — resolved at runtime
-        required: true,
-        doa_level: 1,
-      },
-      {
-        step: 2,
-        role: 'Department Head',
-        approver_email: approvers?.head || null,
-        required: doaLevel >= 2,
-        doa_level: 2,
-      },
-      {
-        step: 3,
-        role: 'Chief / Executive',
-        approver_email: approvers?.chief || null,
-        required: doaLevel >= 3,
-        doa_level: 3,
-      },
-      {
-        step: 4,
-        role: 'Finance Review',
-        approver_email: 'head.finance@seacom.com',
-        required: doaLevel >= 4,
-        doa_level: 4,
-      },
-      {
-        step: 5,
-        role: 'CFO / CEO',
-        approver_email: 'chief.finance@seacom.com',
-        required: doaLevel >= 4,
-        doa_level: 4,
-      },
-    ]
-  }
-
-  // ── Line item editing ─────────────────────────────────────────
   const handleLineItemChange = (itemIndex: number, year: string, value: number) => {
     const updated = [...capexLineItems]
     updated[itemIndex].years[year] = value
     setCapexLineItems(updated)
   }
 
-  // ── File handling ─────────────────────────────────────────────
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(prev => [...prev, ...Array.from(e.target.files!)])
@@ -268,14 +294,12 @@ export function useNewRequestForm({
 
   const removeFile = (index: number) => setFiles(prev => prev.filter((_, i) => i !== index))
 
-  // ── Step navigation ───────────────────────────────────────────
   const nextStep = () => {
     if (currentStep === 0) {
-      if (!formData.title)           { setError('Title is required'); return }
-      if (formData.amount <= 0)      { setError('Amount is required'); return }
-      if (!formData.department_id)   { setError('Department is required'); return }
-      if (!formData.business_unit)   { setError('Business unit is required'); return }
-      if (!formData.legal_entity_id) { setError('Legal entity is required'); return }
+      if (!formData.title || formData.title.trim() === '') { setError('Title required'); return }
+      if (!formData.department_id) { setError('Department required'); return }
+      if (!formData.business_unit) { setError('Business unit required'); return }
+      if (!formData.legal_entity_id) { setError('Legal entity required'); return }
     }
     setError(null)
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1)
@@ -286,7 +310,6 @@ export function useNewRequestForm({
     if (currentStep > 0) setCurrentStep(prev => prev - 1)
   }
 
-  // ── Submit ────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!userId) {
       setError('Please sign in')
@@ -297,16 +320,18 @@ export function useNewRequestForm({
     setSubmitting(true)
     try {
       const year = new Date().getFullYear()
-      const { count } = await supabase
-        .from('funding_requests')
-        .select('*', { count: 'exact', head: true })
-
+      const { count } = await supabase.from('funding_requests').select('*', { count: 'exact', head: true })
       const requestNumber = `FR-${year}-${String((count || 0) + 1).padStart(3, '0')}`
       const doaLevel = calcDoALevel()
-      const chain = buildApprovalChain()
-      const firstApprover = chain.find(s => s.required)
-
-      const { error: insertError } = await supabase.from('funding_requests').insert({
+      const amountUSD = convertToUSD(grandTotal, formData.currency)
+      const chain = buildApprovalChain(grandTotal, formData.department_id, formData.business_unit, getDepartmentApprovers)
+      
+      const lineItemsJSON = capexLineItems.map(item => ({
+        name: item.name,
+        years: item.years
+      }))
+      
+      const { data: newRequest, error: insertError } = await supabase.from('funding_requests').insert({
         request_number: requestNumber,
         requester_email: userEmail,
         title: formData.title,
@@ -315,19 +340,43 @@ export function useNewRequestForm({
         business_unit: formData.business_unit,
         legal_entity_id: formData.legal_entity_id || null,
         currency: formData.currency,
-        amount: formData.amount,
+        amount: grandTotal,
+        amount_usd: amountUSD,
         budget_type: formData.budget_type,
-        status: 'Pending',
-        doa_level: doaLevel,
-        current_approver: firstApprover?.approver_email || firstApprover?.role || 'Line Manager',
-        approval_chain: chain,                  // store full chain as JSON
+        status: chain.length > 0 ? 'Pending' : 'Approved',
+        current_approver: doaLevel,
         segment: formData.segment,
         project_number: formData.project_number,
+        doa_level: doaLevel,
+        approval_chain: chain,
         approval_comments: approvalComments,
+        required_by_date: formData.required_by_date.toISOString().split('T')[0],
+        quotation_value: quotationValue,
+        line_items: lineItemsJSON,
+        current_step: 1,
+        total_steps: chain.length,
+        current_approver_email: chain[0]?.email || null,
         created_at: new Date().toISOString(),
-      })
+      }).select().single()
 
       if (insertError) throw insertError
+
+      for (let i = 0; i < chain.length; i++) {
+        const step = chain[i]
+        const { error: approvalError } = await supabase
+          .from('approval_actions')
+          .insert({
+            request_id: newRequest.id,
+            approver_email: step.email,
+            action: 'pending',
+            comments: null,
+            created_at: new Date().toISOString()
+          })
+        
+        if (approvalError) {
+          console.error(`Error creating approval action for step ${step.step}:`, approvalError)
+        }
+      }
 
       toast.success(`Request ${requestNumber} submitted successfully!`)
       setTimeout(() => navigate('/my-requests'), 2000)
@@ -343,7 +392,6 @@ export function useNewRequestForm({
   }
 
   return {
-    // State
     currentStep,
     submitting,
     showConfirmDialog,
@@ -358,12 +406,10 @@ export function useNewRequestForm({
     formData,
     setFormData,
     generatingProjectNumber,
-    // Computed
+    grandTotal,
     steps: STEPS,
-    grandTotal: calcGrandTotal(),
     doaLevel: calcDoALevel(),
-    approvalChain: buildApprovalChain(),
-    // Handlers
+    approvalChain: approvalChain(),
     nextStep,
     prevStep,
     handleSubmit,

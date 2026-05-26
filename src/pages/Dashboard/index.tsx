@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { QuickStatsCards } from './components/QuickStatsCards'
 import { KPICards } from './components/KPICards'
@@ -48,7 +48,7 @@ interface EntitySpendItem {
 }
 
 export default function Dashboard() {
-  const { user, profile } = useAuthStore()
+  const { user, profile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     totalRequests: 0,

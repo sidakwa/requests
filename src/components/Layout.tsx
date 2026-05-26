@@ -1,3 +1,4 @@
+import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
@@ -27,8 +28,16 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  badge?: boolean
+}
+
 // Navigation structure based on user role
-const getNavigation = (userRole: string | null) => {
+const getNavigation = (userRole: string | null): NavItem[] => {
   const baseNav = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & key metrics' },
     { name: 'My Requests', href: '/my-requests', icon: FileText, description: 'View and track your requests' },
