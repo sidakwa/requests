@@ -247,7 +247,6 @@ export default function Reports() {
       ])
 
     } catch (err) {
-      console.error('Error fetching report data:', err)
     } finally {
       setLoading(false)
     }

@@ -84,7 +84,6 @@ export default function Admin() {
       if (buRes.data) setBusinessUnits(buRes.data)
 
     } catch (error) {
-      console.error('Error fetching admin data:', error)
       toast.error('Failed to load admin data')
     } finally {
       setLoading(false)
@@ -120,7 +119,6 @@ export default function Admin() {
       setShowDeptDialog(false)
       setEditingDept(null)
     } catch (error: any) {
-      console.error('Error:', error)
       toast.error('Failed to save department: ' + error.message)
     }
   }
@@ -166,7 +164,6 @@ export default function Admin() {
       setShowEntityDialog(false)
       setEditingEntity(null)
     } catch (error) {
-      console.error('Error saving legal entity:', error)
       toast.error('Failed to save legal entity')
     }
   }
@@ -204,7 +201,6 @@ export default function Admin() {
       setShowDoaDialog(false)
       setEditingDoa(null)
     } catch (error) {
-      console.error('Error saving DoA rule:', error)
       toast.error('Failed to save DoA rule')
     }
   }

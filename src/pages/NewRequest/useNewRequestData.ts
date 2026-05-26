@@ -1,81 +1,154 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
-interface Department {
+export interface LegalEntity {
   id: string
   name: string
-  head_email: string
-  chief_email: string
-}
-
-interface LegalEntity {
-  id: string
   code: string
-  name: string
   business_unit: string
 }
 
-interface Currency {
+export interface Department {
+  id: string
+  name: string
+  chief_email: string
+  head_email: string
+}
+
+export interface BusinessUnit {
+  code: string
+  name: string
+}
+
+export interface DoaRule {
+  id: string
+  min_amount: number
+  max_amount: number
+  currency: string
+  approval_level: string
+}
+
+export interface Currency {
   id: string
   code: string
   name: string
   symbol: string
+  rate: number
+  is_base: boolean
 }
 
-export function useNewRequestData() {
-  const [departments, setDepartments] = useState<Department[]>([])
+interface UseNewRequestDataReturn {
+  legalEntities: LegalEntity[]
+  filteredLegalEntities: LegalEntity[]
+  departments: Department[]
+  businessUnits: BusinessUnit[]
+  doaRules: DoaRule[]
+  currencies: Currency[]
+  loading: boolean
+  filterEntitiesByBU: (buCode: string) => void
+  getDepartmentApprovers: (departmentId: string) => { headEmail: string; chiefEmail: string } | null
+}
+
+export function useNewRequestData(): UseNewRequestDataReturn {
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([])
+  const [filteredLegalEntities, setFilteredLegalEntities] = useState<LegalEntity[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
+  const [doaRules, setDoaRules] = useState<DoaRule[]>([])
   const [currencies, setCurrencies] = useState<Currency[]>([])
   const [loading, setLoading] = useState(true)
 
+  const getDepartmentApprovers = useCallback((departmentId: string) => {
+    const department = departments.find(d => d.id === departmentId)
+    if (!department) return null
+    return {
+      headEmail: department.head_email,
+      chiefEmail: department.chief_email
+    }
+  }, [departments])
+
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchAll = async () => {
+      setLoading(true)
       try {
-        console.log('Fetching departments...')
+        
+        // Fetch departments
         const { data: deptData, error: deptError } = await supabase
           .from('departments')
           .select('*')
-          .order('name')
-        
-        if (deptError) console.error('Departments error:', deptError)
-        setDepartments(deptData || [])
-        console.log('Departments loaded:', deptData?.length || 0)
+        if (deptError) throw deptError
+        if (deptData) {
+          setDepartments(deptData)
+        }
 
-        console.log('Fetching legal entities...')
+        // Fetch business units
+        const { data: buData, error: buError } = await supabase
+          .from('business_units')
+          .select('*')
+        if (buError) throw buError
+        if (buData) {
+          setBusinessUnits(buData)
+        }
+
+        // Fetch legal entities
         const { data: legalData, error: legalError } = await supabase
           .from('legal_entities')
           .select('*')
           .order('name')
-        
-        if (legalError) console.error('Legal entities error:', legalError)
-        setLegalEntities(legalData || [])
-        console.log('Legal entities loaded:', legalData?.length || 0)
+        if (legalError) throw legalError
+        if (legalData) {
+          setLegalEntities(legalData)
+          const defaultBU = buData && buData.length > 0 ? buData[0].code : 'DI'
+          const initialFiltered = legalData.filter(e => e.business_unit === defaultBU)
+          setFilteredLegalEntities(initialFiltered)
+        }
 
-        console.log('Fetching currencies...')
+        // Fetch DOA rules
+        const { data: doaData, error: doaError } = await supabase
+          .from('doa_rules')
+          .select('*')
+          .order('min_amount')
+        if (doaError) throw doaError
+        if (doaData) {
+          setDoaRules(doaData)
+        }
+
+        // Fetch currencies
         const { data: currencyData, error: currencyError } = await supabase
           .from('currencies')
           .select('*')
-          .eq('is_active', true)
           .order('code')
-        
-        if (currencyError) console.error('Currencies error:', currencyError)
-        setCurrencies(currencyData || [])
-        console.log('Currencies loaded:', currencyData?.length || 0)
+        if (currencyError) {
+        } else if (currencyData) {
+          setCurrencies(currencyData)
+        }
 
-      } catch (error) {
-        console.error('Error fetching data:', error)
+      } catch (err) {
+        toast.error('Failed to load form data')
       } finally {
         setLoading(false)
       }
     }
 
-    fetchData()
+    fetchAll()
   }, [])
 
+  const filterEntitiesByBU = useCallback((buCode: string) => {
+    if (!buCode || legalEntities.length === 0) return
+    const filtered = legalEntities.filter(e => e.business_unit === buCode)
+    setFilteredLegalEntities(filtered)
+  }, [legalEntities])
+
   return {
-    departments,
     legalEntities,
+    filteredLegalEntities,
+    departments,
+    businessUnits,
+    doaRules,
     currencies,
-    loading
+    loading,
+    filterEntitiesByBU,
+    getDepartmentApprovers,
   }
 }

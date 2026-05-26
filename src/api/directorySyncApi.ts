@@ -55,7 +55,6 @@ class DirectorySyncApi {
       })
 
       if (error) {
-        console.warn('Edge Function not deployed yet, using mock data')
         // Return mock success for now
         return { 
           success: true, 
@@ -90,7 +89,6 @@ class DirectorySyncApi {
         message: `Synced ${syncedCount} users from Azure AD` 
       }
     } catch (error) {
-      console.error('Sync failed:', error)
       return { success: false, usersSynced: 0, message: 'Sync failed. Check Edge Function deployment.' }
     } finally {
       this.syncInProgress = false

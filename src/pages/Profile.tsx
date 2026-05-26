@@ -79,7 +79,6 @@ export default function Profile() {
       .order('created_at', { ascending: false })
     
     if (error) {
-      console.error('Error fetching user requests:', error)
       return
     }
     
@@ -113,7 +112,6 @@ export default function Profile() {
       toast.success('Profile updated successfully')
       setEditing(false)
     } catch (err) {
-      console.error('Error updating profile:', err)
       toast.error('Failed to update profile')
     } finally {
       setLoading(false)

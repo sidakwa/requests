@@ -31,7 +31,6 @@ export function useCurrencies() {
       if (error) throw error
       setCurrencies(data || [])
     } catch (err) {
-      console.error('Error fetching currencies:', err)
       setError('Failed to load currencies')
     } finally {
       setLoading(false)

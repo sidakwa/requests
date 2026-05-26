@@ -40,7 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadProfile = async (userId: string): Promise<void> => {
     try {
-      console.log('📥 Loading profile for user:', userId)
       
       const { data, error } = await supabase
         .from('profiles')
@@ -49,16 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (error) {
-        console.error('❌ Profile fetch error:', error)
         return
       }
 
       if (data) {
-        console.log('✅ Profile loaded:', { email: data.email, role: data.role })
         setProfile(data as Profile)
         setUserRole(data.role as UserRole)
       } else {
-        console.warn('⚠️ No profile found for user:', userId)
         // Optional: Create profile here if trigger is not working
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
@@ -72,25 +68,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
         
         if (!insertError && newProfile) {
-          console.log('✅ Created new profile:', newProfile)
           setProfile(newProfile as Profile)
           setUserRole('submitter')
         }
       }
     } catch (err) {
-      console.error('❌ Profile load exception:', err)
     }
   }
 
   const refreshProfile = async () => {
     if (!user) return
-    console.log('🔄 Refreshing profile for user:', user.id)
     await loadProfile(user.id)
   }
 
   const signInWithAzure = async () => {
     try {
-      console.log('🔐 Signing in with Azure...')
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
         options: {
@@ -99,24 +91,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       if (error) throw error
     } catch (err) {
-      console.error('❌ Azure sign in error:', err)
     }
   }
 
   const handleSession = async (session: any) => {
-    console.log('📋 Handling session for:', session?.user?.email)
     
     if (session?.user) {
-      console.log('👤 Current Supabase User:', {
-        id: session.user.id,
-        email: session.user.email,
-        metadata: session.user.user_metadata
-      })
       
       setUser(session.user)
       await loadProfile(session.user.id)
     } else {
-      console.log('🚫 No session - clearing user data')
       setUser(null)
       setProfile(null)
       setUserRole(null)
@@ -132,17 +116,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        console.log('🚀 Initializing auth...')
         
         const { data: { session }, error } = await supabase.auth.getSession()
         
         if (error) {
-          console.error('❌ Error getting session:', error)
           if (mounted) setLoading(false)
           return
         }
-
-        console.log('📡 Initial session:', session?.user?.email || 'No session')
         
         if (mounted && session) {
           await handleSession(session)
@@ -152,7 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
           async (event, session) => {
-            console.log('🔄 Auth event:', event, 'user:', session?.user?.email)
             if (!mounted) return
             
             if (event === 'SIGNED_OUT') {
@@ -175,7 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           subscription.unsubscribe()
         }
       } catch (err) {
-        console.error('❌ Auth initialization error:', err)
         if (mounted) setLoading(false)
       }
     }
@@ -185,13 +163,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('🚪 Signing out...')
       await supabase.auth.signOut()
       setUser(null)
       setProfile(null)
       setUserRole(null)
     } catch (err) {
-      console.error('❌ Error signing out:', err)
     }
   }
 
@@ -211,8 +187,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithAzure,
     refreshProfile
   }
-
-  console.log('🏁 AuthProvider state - loading:', loading, 'user:', user?.email, 'role:', userRole)
 
   return (
     <AuthContext.Provider value={value}>

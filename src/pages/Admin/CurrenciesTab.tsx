@@ -42,7 +42,6 @@ export function CurrenciesTab() {
       if (error) throw error
       setCurrencies(data || [])
     } catch (error) {
-      console.error('Error fetching currencies:', error)
       toast.error('Failed to load currencies')
     } finally {
       setLoading(false)
@@ -66,7 +65,6 @@ export function CurrenciesTab() {
       setShowEditDialog(false)
       setEditingCurrency(null)
     } catch (error) {
-      console.error('Error updating rate:', error)
       toast.error('Failed to update exchange rate')
     }
   }
@@ -92,7 +90,6 @@ export function CurrenciesTab() {
       toast.success('Base currency updated successfully')
       await fetchCurrencies()
     } catch (error) {
-      console.error('Error setting base currency:', error)
       toast.error('Failed to set base currency')
     }
   }
@@ -112,7 +109,6 @@ export function CurrenciesTab() {
       toast.success('Currency added successfully')
       await fetchCurrencies()
     } catch (error) {
-      console.error('Error adding currency:', error)
       toast.error('Failed to add currency')
     }
   }
@@ -131,7 +127,6 @@ export function CurrenciesTab() {
       toast.success('Currency deleted successfully')
       await fetchCurrencies()
     } catch (error) {
-      console.error('Error deleting currency:', error)
       toast.error('Failed to delete currency')
     }
   }

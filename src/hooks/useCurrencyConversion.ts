@@ -29,7 +29,6 @@ export function useCurrencyConversion() {
         setCurrencies(data)
       }
     } catch (error) {
-      console.error('Error fetching currencies:', error)
     } finally {
       setLoading(false)
     }

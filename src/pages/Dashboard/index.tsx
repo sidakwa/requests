@@ -177,7 +177,6 @@ export default function Dashboard() {
 
     } catch (err) {
       const error = err as Error
-      console.error('Error fetching dashboard data:', error)
       setError(error.message)
     } finally {
       setLoading(false)

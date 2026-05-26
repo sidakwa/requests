@@ -41,7 +41,6 @@ export default function MyRequests() {
       if (error) throw error
       setRequests(data || [])
     } catch (err) {
-      console.error('Error fetching requests:', err)
     } finally {
       setLoading(false)
     }

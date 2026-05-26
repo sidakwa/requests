@@ -200,7 +200,6 @@ export default function Reports() {
       setDepartmentMetrics(deptMetrics)
 
     } catch (error) {
-      console.error('Error fetching report data:', error)
       toast.error('Failed to load reports')
     } finally {
       setLoading(false)

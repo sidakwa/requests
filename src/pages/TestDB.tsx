@@ -7,23 +7,18 @@ export default function TestDB() {
 
   useEffect(() => {
     const testConnection = async () => {
-      console.log('Testing Supabase connection...')
       
       // Test 1: Check if we can connect
       const { data: healthCheck, error: healthError } = await supabase.from('business_units').select('count', { count: 'exact', head: true })
-      console.log('Health check:', { healthCheck, healthError })
       
       // Test 2: Try to get business units
       const { data: buData, error: buError } = await supabase.from('business_units').select('*')
-      console.log('Business units:', buData, buError)
       
       // Test 3: Try to get departments
       const { data: deptData, error: deptError } = await supabase.from('departments').select('*')
-      console.log('Departments:', deptData, deptError)
       
       // Test 4: Try to get legal entities
       const { data: legalData, error: legalError } = await supabase.from('legal_entities').select('*').limit(5)
-      console.log('Legal entities (first 5):', legalData, legalError)
       
       setResults({ buData, deptData, legalData })
       if (buError || deptError || legalError) {

@@ -134,7 +134,6 @@ export default function Dashboard() {
         setAvailableDepartments(Array.from(departments).sort())
         
       } catch (err) {
-        console.error('Error fetching requests:', err)
         toast.error('Failed to load requests')
       } finally {
         if (currentFetchId === fetchIdRef.current) {

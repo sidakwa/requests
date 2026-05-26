@@ -33,6 +33,9 @@ interface FundingRequest {
   project_number?: string
   doa_level?: string
   approval_comments?: string
+  current_step?: number
+  total_steps?: number
+  current_approver_email?: string
   department?: { name: string }
   legal_entity?: { name: string; code: string }
 }
@@ -89,19 +92,22 @@ export default function ViewRequest() {
       }
 
     } catch (error) {
-      console.error('Error fetching request:', error)
       toast.error('Failed to load request details')
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusConfig = (status: string) => {
-    switch (status) {
+  const getStatusConfig = (req: FundingRequest) => {
+    switch (req.status) {
       case 'Approved':
         return { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', label: 'Approved' }
-      case 'Pending':
-        return { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', label: 'Pending Review' }
+      case 'Pending': {
+        const step = req.current_step
+        const total = req.total_steps
+        const label = step && total ? `Pending Approval · Step ${step} of ${total}` : 'Pending Review'
+        return { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', label }
+      }
       case 'Rejected':
         return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', label: 'Rejected' }
       case 'Returned':
@@ -115,6 +121,7 @@ export default function ViewRequest() {
     if (action === 'approved') return <CheckCircle2 className="w-5 h-5 text-green-600" />
     if (action === 'rejected') return <XCircle className="w-5 h-5 text-red-600" />
     if (action === 'returned') return <RotateCcw className="w-5 h-5 text-orange-600" />
+    if (action === 'cancelled') return <XCircle className="w-5 h-5 text-gray-400" />
     return <Clock className="w-5 h-5 text-yellow-600" />
   }
 
@@ -122,6 +129,7 @@ export default function ViewRequest() {
     if (action === 'approved') return 'Approved'
     if (action === 'rejected') return 'Rejected'
     if (action === 'returned') return 'Returned'
+    if (action === 'cancelled') return 'Cancelled'
     return 'Pending'
   }
 
@@ -144,7 +152,14 @@ export default function ViewRequest() {
     )
   }
 
-  const statusConfig = getStatusConfig(request.status)
+  // If any approval action is still pending, the request is not truly approved yet —
+  // override the DB status which can be set prematurely by the workflow logic.
+  const hasPendingActions = approvalHistory.some(a => a.action === 'pending')
+  const effectiveRequest = hasPendingActions && request.status === 'Approved'
+    ? { ...request, status: 'Pending' }
+    : request
+
+  const statusConfig = getStatusConfig(effectiveRequest)
   const StatusIcon = statusConfig.icon
 
   return (
@@ -242,18 +257,29 @@ export default function ViewRequest() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {approvalHistory.map((step, index) => (
-                  <div key={step.id} className="flex gap-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="flex-shrink-0">
+                {approvalHistory.map((step, index) => {
+                  const stateStyles = step.action === 'approved'
+                    ? { card: 'bg-green-50 border border-green-200', badge: 'bg-green-100 text-green-700 border-green-200', dot: 'bg-green-500' }
+                    : step.action === 'rejected'
+                    ? { card: 'bg-red-50 border border-red-200', badge: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' }
+                    : step.action === 'returned'
+                    ? { card: 'bg-orange-50 border border-orange-200', badge: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500' }
+                    : step.action === 'cancelled'
+                    ? { card: 'bg-gray-50 border border-gray-200 opacity-60', badge: 'bg-gray-100 text-gray-500 border-gray-200', dot: 'bg-gray-400' }
+                    : { card: 'bg-yellow-50 border border-yellow-200', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', dot: 'bg-yellow-400' }
+                  return (
+                  <div key={step.id} className={`flex gap-4 p-4 rounded-lg ${stateStyles.card}`}>
+                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
                       {getStepIcon(step.action)}
+                      <span className={`w-2 h-2 rounded-full ${stateStyles.dot}`} />
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="font-medium">{step.approver_email}</p>
+                          <p className="font-medium text-gray-900">{step.approver_email}</p>
                           <p className="text-sm text-gray-500">Step {index + 1}</p>
                         </div>
-                        <Badge variant="outline">{getStepStatus(step.action)}</Badge>
+                        <Badge className={`${stateStyles.badge} border`}>{getStepStatus(step.action)}</Badge>
                       </div>
                       {step.comments && (
                         <p className="text-sm text-gray-600 mt-2">Comment: {step.comments}</p>
@@ -263,7 +289,8 @@ export default function ViewRequest() {
                       </p>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 {approvalHistory.length === 0 && (
                   <p className="text-gray-500 text-center py-4">No approval actions yet</p>
                 )}
@@ -279,6 +306,15 @@ export default function ViewRequest() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {['Rejected', 'Returned'].includes(request.status) && request.requester_email === user?.email && (
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  onClick={() => navigate(`/edit-request/${request.id}`)}
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Edit & Resubmit
+                </Button>
+              )}
               <Button variant="outline" className="w-full" onClick={() => navigate('/my-requests')}>
                 <FileText className="w-4 h-4 mr-2" />
                 View All My Requests

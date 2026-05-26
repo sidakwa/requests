@@ -28,6 +28,9 @@ interface FundingRequest {
   status: string
   requester_email: string
   created_at: string
+  current_step?: number
+  total_steps?: number
+  current_approver_email?: string
   department?: { name: string }
 }
 
@@ -50,49 +53,51 @@ export default function MyRequests() {
       return
     }
 
-    console.log("🔍 Fetching CAPEX requests for:", user.email)
-
     try {
       const { data, error } = await supabase
         .from('funding_requests')
         .select(`
-          id, 
-          request_number, 
-          title, 
+          id,
+          request_number,
+          title,
           description,
-          amount, 
-          currency, 
+          amount,
+          currency,
           budget_type,
           business_unit,
-          status, 
-          requester_email, 
+          status,
+          requester_email,
           created_at,
+          current_step,
+          total_steps,
+          current_approver_email,
           department:departments(name)
         `)
         .eq('requester_email', user.email)
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error fetching requests:', error)
         toast.error('Failed to load your CAPEX requests')
       } else {
-        console.log('✅ Loaded:', data?.length || 0, 'CAPEX requests')
         setRequests(data || [])
       }
     } catch (err) {
-      console.error('Unexpected error:', err)
       toast.error('An error occurred while loading your requests')
     } finally {
       setLoading(false)
     }
   }
 
-  const getStatusConfig = (status: string) => {
-    switch (status) {
+  const getStatusConfig = (req: FundingRequest) => {
+    switch (req.status) {
       case 'Approved':
         return { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', label: 'Approved' }
-      case 'Pending':
-        return { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', label: 'Pending Review' }
+      case 'Pending': {
+        const step = req.current_step
+        const total = req.total_steps
+        const label = step && total ? `Pending Approval · Step ${step} of ${total}` : 'Pending Review'
+        return { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', label }
+      }
       case 'Rejected':
         return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', label: 'Rejected' }
       case 'Returned':
@@ -272,12 +277,20 @@ export default function MyRequests() {
           ) : (
             <div className="grid gap-4">
               {filteredRequests.map((req) => {
-                const StatusIcon = getStatusConfig(req.status).icon
+                // A fully-approved request has current_step > total_steps.
+                // If DB shows 'Approved' but steps remain, override to Pending.
+                const isStillPending = req.status === 'Approved'
+                  && req.total_steps
+                  && req.current_step
+                  && req.current_step <= req.total_steps
+                const displayReq = isStillPending ? { ...req, status: 'Pending' } : req
+                const statusCfg = getStatusConfig(displayReq)
+                const StatusIcon = statusCfg.icon
                 return (
-                  <Card 
-                    key={req.id} 
+                  <Card
+                    key={req.id}
                     className="hover:shadow-lg transition-all cursor-pointer border-l-4"
-                    style={{ borderLeftColor: getStatusConfig(req.status).color.replace('text-', 'border-') }}
+                    style={{ borderLeftColor: statusCfg.color.replace('text-', '') }}
                     onClick={() => navigate(`/request/${req.id}`)}
                   >
                     <CardContent className="p-6">
@@ -288,9 +301,9 @@ export default function MyRequests() {
                             <span className="font-mono text-sm text-gray-500">
                               {req.request_number}
                             </span>
-                            <Badge className={`${getStatusConfig(req.status).bg} ${getStatusConfig(req.status).color} border-0`}>
+                            <Badge className={`${statusCfg.bg} ${statusCfg.color} border-0`}>
                               <StatusIcon className="w-3 h-3 mr-1" />
-                              {getStatusConfig(req.status).label}
+                              {statusCfg.label}
                             </Badge>
                             <Badge variant="outline" className="text-xs">
                               {req.budget_type}

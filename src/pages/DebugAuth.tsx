@@ -22,7 +22,6 @@ export default function DebugAuth() {
         .single()
       
       if (error) {
-        console.error('Error fetching profile:', error)
         setDbProfile({ error: error.message })
       } else {
         setDbProfile(profile)
@@ -36,10 +35,7 @@ export default function DebugAuth() {
         .eq('role', 'admin')
         .single()
       
-      console.log('Admin check:', adminCheck)
-      
     } catch (err) {
-      console.error('Debug error:', err)
     } finally {
       setLoadingDb(false)
     }
@@ -55,10 +51,8 @@ export default function DebugAuth() {
       .select()
     
     if (error) {
-      console.error('Error updating role:', error)
       alert('Error updating role: ' + error.message)
     } else {
-      console.log('Role updated:', data)
       alert('Role updated to admin! Please refresh the page.')
       setDbProfile(data?.[0])
     }

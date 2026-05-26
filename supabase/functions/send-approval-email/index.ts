@@ -91,6 +91,16 @@ async function sendEmail(
   }
 }
 
+// ── HTML escape to prevent XSS in email body ─────────────────────
+function escHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ── Email HTML template ───────────────────────────────────────────
 function buildEmailHtml(payload: ApprovalEmailPayload, approverRole: string): string {
   const appUrl = Deno.env.get('APP_URL') || 'http://localhost:5173'
@@ -141,25 +151,25 @@ function buildEmailHtml(payload: ApprovalEmailPayload, approverRole: string): st
                       <tr>
                         <td style="padding:6px 0;color:#6b7280;font-size:13px;width:40%;">Request Number</td>
                         <td style="padding:6px 0;color:#111827;font-size:13px;font-weight:600;font-family:monospace;">
-                          ${payload.requestNumber}
+                          ${escHtml(payload.requestNumber)}
                         </td>
                       </tr>
                       <tr>
                         <td style="padding:6px 0;color:#6b7280;font-size:13px;">Title</td>
                         <td style="padding:6px 0;color:#111827;font-size:13px;font-weight:600;">
-                          ${payload.requestTitle}
+                          ${escHtml(payload.requestTitle)}
                         </td>
                       </tr>
                       <tr>
                         <td style="padding:6px 0;color:#6b7280;font-size:13px;">Amount</td>
                         <td style="padding:6px 0;color:#1d4ed8;font-size:15px;font-weight:700;">
-                          ${payload.requestCurrency} ${payload.requestAmount.toLocaleString()}
+                          ${escHtml(payload.requestCurrency)} ${payload.requestAmount.toLocaleString()}
                         </td>
                       </tr>
                       <tr>
                         <td style="padding:6px 0;color:#6b7280;font-size:13px;">Submitted by</td>
                         <td style="padding:6px 0;color:#111827;font-size:13px;">
-                          ${payload.requesterEmail}
+                          ${escHtml(payload.requesterEmail)}
                         </td>
                       </tr>
                       <tr>
@@ -167,7 +177,7 @@ function buildEmailHtml(payload: ApprovalEmailPayload, approverRole: string): st
                         <td style="padding:6px 0;">
                           <span style="background:#dbeafe;color:#1e40af;font-size:12px;font-weight:600;
                             padding:2px 10px;border-radius:999px;">
-                            ${payload.doaLevel}
+                            ${escHtml(payload.doaLevel)}
                           </span>
                         </td>
                       </tr>
@@ -176,7 +186,7 @@ function buildEmailHtml(payload: ApprovalEmailPayload, approverRole: string): st
                         <td style="padding:6px 0;">
                           <span style="background:#f0fdf4;color:#166534;font-size:12px;font-weight:600;
                             padding:2px 10px;border-radius:999px;">
-                            ${approverRole}
+                            ${escHtml(approverRole)}
                           </span>
                         </td>
                       </tr>
@@ -229,6 +239,19 @@ serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  // Require a valid Supabase JWT — prevents unauthenticated callers from
+  // triggering arbitrary emails via the publicly-accessible function URL.
+  const authHeader = req.headers.get('Authorization')
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const token = authHeader?.replace('Bearer ', '')
+  if (!token || (token !== anonKey && token !== serviceKey)) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
   }
 
   try {

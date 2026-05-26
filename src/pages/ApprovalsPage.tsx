@@ -72,7 +72,6 @@ export default function Approvals() {
         .order('created_at', { ascending: true })
       
       if (actionsError) {
-        console.error('Error fetching approvals:', actionsError)
         toast.error('Failed to load approvals')
         setApprovals([])
         setLoading(false)
@@ -107,7 +106,6 @@ export default function Approvals() {
         .in('id', requestIds)
       
       if (requestsError) {
-        console.error('Error fetching requests:', requestsError)
         toast.error('Failed to load request details')
         setApprovals([])
         setLoading(false)
@@ -122,7 +120,6 @@ export default function Approvals() {
       
       setApprovals(combined)
     } catch (error) {
-      console.error('Error in fetchApprovals:', error)
       toast.error('Failed to load approvals')
     } finally {
       setLoading(false)
@@ -173,14 +170,15 @@ export default function Approvals() {
           break
       }
       
-      // Update the approval action
+      // approver_email filter ensures only the assigned approver can mutate their row.
       const { error: updateError } = await supabase
         .from('approval_actions')
-        .update({ 
+        .update({
           action: newAction,
           comments: approvalComment || null
         })
         .eq('id', selectedApproval.id)
+        .eq('approver_email', user!.email!)
       
       if (updateError) throw updateError
       
@@ -203,7 +201,6 @@ export default function Approvals() {
       setShowCommentDialog(false)
       await fetchApprovals()
     } catch (error) {
-      console.error('Error processing approval:', error)
       toast.error('Failed to process approval')
     } finally {
       setProcessingId(null)
