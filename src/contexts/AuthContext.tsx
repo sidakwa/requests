@@ -138,10 +138,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false)
         }
 
+        // IMPORTANT: never await Supabase calls inside onAuthStateChange — the
+        // callback holds the auth lock, and any query inside it waits for that
+        // same lock. This deadlocks on TOKEN_REFRESHED and hangs every later
+        // query in the app. Defer DB work with setTimeout so the callback
+        // returns and releases the lock first.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
+          (event, session) => {
             if (!mounted) return
-            
+
             if (event === 'SIGNED_OUT') {
               setUser(null)
               setProfile(null)
@@ -150,8 +155,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             } else if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
               if (session?.user) {
                 setUser(session.user)
-                await loadProfile(session.user.id)
-                if (mounted) setLoading(false)
+                const userId = session.user.id
+                setTimeout(() => {
+                  if (!mounted) return
+                  loadProfile(userId).finally(() => {
+                    if (mounted) setLoading(false)
+                  })
+                }, 0)
               }
             }
           }
