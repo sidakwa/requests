@@ -8,9 +8,8 @@ import NewRequest from '@/pages/NewRequest'
 import ViewRequest from '@/pages/ViewRequest'
 import EditRequest from '@/pages/EditRequest'
 import AdminPanel from '@/pages/Admin'
-import DebugAuth from '@/pages/DebugAuth'
-import MyRequests from '@/pages/MyRequestsPage'
-import Approvals from '@/pages/ApprovalsPage'
+import MyRequests from '@/pages/MyRequests'
+import Approvals from '@/pages/ApprovalsInbox'
 import Reports from '@/pages/ReportsPage'
 import { Layout } from '@/components/Layout'
 
@@ -22,10 +21,12 @@ function AppRoutes() {
 
     const interval = setInterval(async () => {
       const { data: { session }, error } = await supabase.auth.getSession()
-      if (error || !session) {
-      } else if (session.expires_at && session.expires_at * 1000 < Date.now() + 5 * 60 * 1000) {
+      if (error) {
+        console.error('[session-refresh] getSession error:', error.message)
+      } else if (session && session.expires_at && session.expires_at * 1000 < Date.now() + 5 * 60 * 1000) {
         const { error: refreshError } = await supabase.auth.refreshSession()
         if (refreshError) {
+          console.error('[session-refresh] refresh error:', refreshError.message)
         }
       }
     }, 5 * 60 * 1000)
@@ -48,7 +49,6 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/debug" element={<DebugAuth />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -67,8 +67,7 @@ function AppRoutes() {
         <Route path="/request/:id" element={<ViewRequest />} />
         <Route path="/edit-request/:id" element={<EditRequest />} />
         <Route path="/profile" element={<Dashboard />} />
-        <Route path="/debug" element={<DebugAuth />} />
-        <Route 
+        <Route
           path="/admin" 
           element={
             userRole === 'admin' ? <AdminPanel /> : <Navigate to="/dashboard" replace />

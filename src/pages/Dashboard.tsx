@@ -510,6 +510,7 @@ export default function Dashboard() {
                 <SelectItem value="all">All BUs</SelectItem>
                 <SelectItem value="DI">DI - Digital Infrastructure</SelectItem>
                 <SelectItem value="DS">DS - Digital Services</SelectItem>
+                <SelectItem value="GRP">GRP - Group</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterClass} onValueChange={setFilterClass}>

@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 
 export const dashboardApi = {
-  async getDashboardData(userId: string, userRole: string) {
+  async getDashboardData(userEmail: string, userRole: string) {
     let query = supabase
       .from('funding_requests')
       .select(`
@@ -10,10 +10,9 @@ export const dashboardApi = {
         department:departments(name)
       `)
       .order('created_at', { ascending: false })
-    
-    // Apply RLS-based filtering
+
     if (userRole === 'submitter') {
-      query = query.eq('requester_email', userId)
+      query = query.eq('requester_email', userEmail)
     }
     
     const { data, error } = await query

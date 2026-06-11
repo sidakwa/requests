@@ -477,11 +477,11 @@ export default function Admin() {
               <div className="space-y-4">
                 <div>
                   <Label>Tenant ID</Label>
-                  <Input value={import.meta.env.VITE_AZURE_TENANT_ID || '4c1a7a88-ef89-4360-a322-cc29c20d1966'} disabled className="bg-gray-50" />
+                  <Input value={import.meta.env.VITE_AZURE_TENANT_ID ?? ''} disabled className="bg-gray-50" />
                 </div>
                 <div>
                   <Label>Client ID</Label>
-                  <Input value={import.meta.env.VITE_AZURE_CLIENT_ID || '4b2d84bf-ee4e-4446-8d14-b2624a6323d3'} disabled className="bg-gray-50" />
+                  <Input value={import.meta.env.VITE_AZURE_CLIENT_ID ?? ''} disabled className="bg-gray-50" />
                 </div>
                 <div>
                   <Label>Notification Channel</Label>
@@ -584,6 +584,7 @@ export default function Admin() {
               >
                 <option value="DI">Digital Infrastructure (DI)</option>
                 <option value="DS">Digital Services (DS)</option>
+                <option value="GRP">Group (GRP)</option>
               </select>
             </div>
           </div>

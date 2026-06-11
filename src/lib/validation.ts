@@ -5,7 +5,7 @@ export const fundingRequestSchema = z.object({
   description: z.string().min(20, 'Description must be at least 20 characters'),
   amount: z.number().positive('Amount must be positive'),
   department_id: z.string().uuid('Invalid department'),
-  business_unit: z.enum(['DI', 'DS']),
+  business_unit: z.enum(['DI', 'DS', 'GRP']),
   legal_entity_id: z.string().uuid('Invalid legal entity'),
   currency: z.enum(['USD', 'ZAR', 'EUR', 'GBP', 'KES', 'MZN', 'TZS', 'UGX']),
   budget_type: z.enum(['CAPEX', 'OPEX']),

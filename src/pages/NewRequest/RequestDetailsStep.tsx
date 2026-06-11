@@ -9,11 +9,14 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
+import { Department } from './useNewRequestData'
+
+const DS_REGIONS = ['East Africa', 'Kenya', 'Tanzania', 'Uganda', 'Shared', 'South Africa']
 
 interface RequestDetailsStepProps {
   formData: any
   setFormData: (data: any) => void
-  departments: any[]
+  departments: Department[]
   businessUnits: any[]
   filteredLegalEntities: any[]
   generatingProjectNumber: boolean
@@ -35,8 +38,14 @@ export function RequestDetailsStep({
   required_by_date,
   setRequiredByDate
 }: RequestDetailsStepProps) {
-  // Debug logging
-  
+  const isDS = formData.business_unit === 'DS'
+
+  const visibleDepartments = departments.filter(d => {
+    if (formData.business_unit && d.business_unit && d.business_unit !== formData.business_unit) return false
+    if (isDS && formData.region && d.region !== formData.region) return false
+    return true
+  })
+
   return (
     <Card>
       <CardHeader>
@@ -55,21 +64,11 @@ export function RequestDetailsStep({
           </div>
 
           <div>
-            <Label>Department *</Label>
-            <Select value={formData.department_id} onValueChange={v => setFormData({ ...formData, department_id: v })}>
-              <SelectTrigger><SelectValue placeholder="Select department..." /></SelectTrigger>
-              <SelectContent>
-                {departments?.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
             <Label>Business Unit *</Label>
             <RadioGroup
               value={formData.business_unit}
               onValueChange={v => {
-                setFormData({ ...formData, business_unit: v, legal_entity_id: '' })
+                setFormData({ ...formData, business_unit: v, legal_entity_id: '', region: '', department_id: '' })
               }}
               className="flex gap-4 mt-1"
             >
@@ -80,6 +79,42 @@ export function RequestDetailsStep({
                 </div>
               ))}
             </RadioGroup>
+          </div>
+
+          {isDS && (
+            <div>
+              <Label>Region *</Label>
+              <Select
+                value={formData.region}
+                onValueChange={v => setFormData({ ...formData, region: v, department_id: '' })}
+                disabled={!formData.business_unit}
+              >
+                <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
+                <SelectContent>
+                  {DS_REGIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div>
+            <Label>Department *</Label>
+            <Select
+              value={formData.department_id}
+              onValueChange={v => setFormData({ ...formData, department_id: v })}
+              disabled={!formData.business_unit || (isDS && !formData.region)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={
+                  !formData.business_unit ? 'Select business unit first' :
+                  (isDS && !formData.region) ? 'Select region first' :
+                  'Select department...'
+                } />
+              </SelectTrigger>
+              <SelectContent>
+                {visibleDepartments.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -144,7 +179,7 @@ export function RequestDetailsStep({
         </div>
 
         <div>
-          <Label>Description *</Label>
+          <Label>Executive Summary *</Label>
           <Textarea rows={4} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Describe the purpose and business justification for this request..." />
         </div>
 

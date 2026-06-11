@@ -14,6 +14,8 @@ export interface Department {
   name: string
   chief_email: string
   head_email: string
+  business_unit: string
+  region?: string | null
 }
 
 export interface BusinessUnit {
@@ -42,11 +44,13 @@ interface UseNewRequestDataReturn {
   legalEntities: LegalEntity[]
   filteredLegalEntities: LegalEntity[]
   departments: Department[]
+  filteredDepartments: Department[]
   businessUnits: BusinessUnit[]
   doaRules: DoaRule[]
   currencies: Currency[]
   loading: boolean
   filterEntitiesByBU: (buCode: string) => void
+  filterDepartmentsByBU: (buCode: string) => void
   getDepartmentApprovers: (departmentId: string) => { headEmail: string; chiefEmail: string } | null
 }
 
@@ -54,6 +58,7 @@ export function useNewRequestData(): UseNewRequestDataReturn {
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([])
   const [filteredLegalEntities, setFilteredLegalEntities] = useState<LegalEntity[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  const [filteredDepartments, setFilteredDepartments] = useState<Department[]>([])
   const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([])
   const [doaRules, setDoaRules] = useState<DoaRule[]>([])
   const [currencies, setCurrencies] = useState<Currency[]>([])
@@ -140,15 +145,23 @@ export function useNewRequestData(): UseNewRequestDataReturn {
     setFilteredLegalEntities(filtered)
   }, [legalEntities])
 
+  const filterDepartmentsByBU = useCallback((buCode: string) => {
+    if (!buCode || departments.length === 0) return
+    const filtered = departments.filter(d => d.business_unit === buCode)
+    setFilteredDepartments(filtered)
+  }, [departments])
+
   return {
     legalEntities,
     filteredLegalEntities,
     departments,
+    filteredDepartments,
     businessUnits,
     doaRules,
     currencies,
     loading,
     filterEntitiesByBU,
+    filterDepartmentsByBU,
     getDepartmentApprovers,
   }
 }

@@ -99,3 +99,14 @@ Thumbs.db
 # --- Uploaded Files ---
 uploaded_files/
 
+# --- Backup / scratch files ---
+*.backup
+*.bak
+*.orig
+
+# --- Supabase CLI temp state ---
+supabase/.temp/
+
+
+# --- Claude Code local settings (machine-specific) ---
+.claude/settings.local.json

@@ -216,7 +216,7 @@ export function ApprovalChainSection({
 
             {formData.description && (
               <div className="mt-5 pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Description</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wide font-medium mb-1">Executive Summary</p>
                 <p className="text-sm text-gray-700">{formData.description}</p>
               </div>
             )}

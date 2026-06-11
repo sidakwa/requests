@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/watz/Documents/Playbooks/Engineering/requests/supabase/migrations)",
+      "Bash(CLAUDE_CODE_TMPDIR=/tmp npx tsc --noEmit)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)"
+    ],
+    "additionalDirectories": [
+      "/Users/watz/Documents/Playbooks/Engineering/requests/supabase"
+    ]
+  }
+}

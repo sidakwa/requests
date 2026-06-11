@@ -30,11 +30,13 @@ export default function NewRequest() {
     legalEntities,
     filteredLegalEntities,
     departments,
+    filteredDepartments,
     businessUnits,
     doaRules,
     currencies,
     loading,
     filterEntitiesByBU,
+    filterDepartmentsByBU,
     getDepartmentApprovers,
   } = useNewRequestData()
 
@@ -67,6 +69,7 @@ export default function NewRequest() {
     doaRules,
     businessUnits,
     filterEntitiesByBU,
+    filterDepartmentsByBU,
     userId: user?.id,
     userEmail: user?.email,
     legalEntities,
@@ -91,7 +94,7 @@ export default function NewRequest() {
           <RequestDetailsStep
             formData={formData}
             setFormData={setFormData}
-            departments={departments}
+            departments={filteredDepartments}
             businessUnits={businessUnits}
             filteredLegalEntities={filteredLegalEntities}
             generatingProjectNumber={generatingProjectNumber}
@@ -152,6 +155,9 @@ export default function NewRequest() {
                     <div className="flex justify-between"><span className="text-gray-500">Title:</span><span className="font-medium">{formData.title || '-'}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Department:</span><span>{departments.find(d => d.id === formData.department_id)?.name || '-'}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Business Unit:</span><span>{businessUnits.find(bu => bu.code === formData.business_unit)?.name || '-'}</span></div>
+                    {formData.business_unit === 'DS' && formData.region && (
+                      <div className="flex justify-between"><span className="text-gray-500">Region:</span><span>{formData.region}</span></div>
+                    )}
                     <div className="flex justify-between"><span className="text-gray-500">Legal Entity:</span><span>{legalEntities.find(e => e.id === formData.legal_entity_id)?.name || '-'}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Classification:</span><span>{formData.budget_type}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">Required By:</span><span>{format(formData.required_by_date, 'PPP')}</span></div>
@@ -166,7 +172,7 @@ export default function NewRequest() {
                   </div>
                 </div>
               </div>
-              {formData.description && (<div><h3 className="font-semibold text-gray-900 mb-2">Description</h3><p className="text-sm text-gray-600">{formData.description}</p></div>)}
+              {formData.description && (<div><h3 className="font-semibold text-gray-900 mb-2">Executive Summary</h3><p className="text-sm text-gray-600">{formData.description}</p></div>)}
               {files.length > 0 && (<div><h3 className="font-semibold text-gray-900 mb-2">Attachments ({files.length})</h3><div className="flex flex-wrap gap-2">{files.map((file, idx) => (<span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">{file.name}</span>))}</div></div>)}
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">Approval Chain</h3>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
-import { User } from '@supabase/supabase-js'
+import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 
 type UserRole = 'admin' | 'approver' | 'submitter' | null
 
@@ -48,6 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (error) {
+        console.error('[loadProfile] Supabase error:', error.message)
+        toast.error('Failed to load your profile. Please refresh.')
         return
       }
 
@@ -55,24 +58,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(data as Profile)
         setUserRole(data.role as UserRole)
       } else {
-        // Optional: Create profile here if trigger is not working
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
-          .insert([{ 
-            id: userId, 
+          .insert([{
+            id: userId,
             email: user?.email,
             role: 'submitter',
             full_name: user?.user_metadata?.full_name || user?.email?.split('@')[0]
           }])
           .select('*')
           .single()
-        
-        if (!insertError && newProfile) {
+
+        if (insertError) {
+          console.error('[loadProfile] Failed to create profile:', insertError.message)
+        } else if (newProfile) {
           setProfile(newProfile as Profile)
           setUserRole('submitter')
         }
       }
     } catch (err) {
+      console.error('[loadProfile] Unexpected error:', err)
+      toast.error('An unexpected error occurred loading your profile.')
     }
   }
 
@@ -91,10 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       if (error) throw error
     } catch (err) {
+      console.error('[signInWithAzure] error:', err)
+      toast.error('Sign-in failed. Please try again.')
     }
   }
 
-  const handleSession = async (session: any) => {
+  const handleSession = async (session: Session | null) => {
     
     if (session?.user) {
       
@@ -154,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           subscription.unsubscribe()
         }
       } catch (err) {
+        console.error('[initializeAuth] Unexpected error:', err)
         if (mounted) setLoading(false)
       }
     }
@@ -168,6 +177,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null)
       setUserRole(null)
     } catch (err) {
+      console.error('[signOut] error:', err)
+      toast.error('Sign-out failed. Please try again.')
     }
   }
 
