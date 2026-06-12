@@ -32,6 +32,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   financial: 'Financial (CAPEX / OPEX)',
   'it-access': 'IT & System Access',
   infrastructure: 'Infrastructure & Engineering',
+  'change-management': 'Change Management',
   'hr-admin': 'HR & Admin',
   facilities: 'General / Facilities',
 }

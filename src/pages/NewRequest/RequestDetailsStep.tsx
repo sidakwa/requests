@@ -9,16 +9,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
-import { Department } from './useNewRequestData'
-
-const DS_REGIONS = ['East Africa', 'Kenya', 'Tanzania', 'Uganda', 'Shared', 'South Africa']
+import { useEffect, useState } from 'react'
+import { BusinessUnit, Department, LegalEntity } from './useNewRequestData'
+import { FormData } from './useNewRequestForm'
+import { fetchLookupOptions } from '@/api/platformApi'
 
 interface RequestDetailsStepProps {
-  formData: any
-  setFormData: (data: any) => void
+  formData: FormData
+  setFormData: (data: FormData) => void
   departments: Department[]
-  businessUnits: any[]
-  filteredLegalEntities: any[]
+  businessUnits: BusinessUnit[]
+  filteredLegalEntities: LegalEntity[]
   generatingProjectNumber: boolean
   doaLevel: string
   totalApprovers: number
@@ -39,6 +40,13 @@ export function RequestDetailsStep({
   setRequiredByDate
 }: RequestDetailsStepProps) {
   const isDS = formData.business_unit === 'DS'
+  const [dsRegions, setDsRegions] = useState<string[]>([])
+
+  useEffect(() => {
+    fetchLookupOptions('lookup:ds_regions')
+      .then(opts => setDsRegions(opts.map(o => o.label)))
+      .catch(() => setDsRegions(['East Africa', 'Kenya', 'Tanzania', 'Uganda', 'Shared', 'South Africa']))
+  }, [])
 
   const visibleDepartments = departments.filter(d => {
     if (formData.business_unit && d.business_unit && d.business_unit !== formData.business_unit) return false
@@ -91,7 +99,7 @@ export function RequestDetailsStep({
               >
                 <SelectTrigger><SelectValue placeholder="Select region..." /></SelectTrigger>
                 <SelectContent>
-                  {DS_REGIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  {dsRegions.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

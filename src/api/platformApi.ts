@@ -128,6 +128,19 @@ export async function fetchLookupOptions(source: string): Promise<FieldOption[]>
 
 // ── Submission ─────────────────────────────────────────────────────
 
+/** Strip HTML tags from any string values before persisting to JSONB. */
+function sanitizeFormValues(values: FormValues): FormValues {
+  const result: FormValues = {}
+  for (const [k, v] of Object.entries(values)) {
+    if (typeof v === 'string') {
+      result[k] = v.replace(/<[^>]*>/g, '').trim()
+    } else {
+      result[k] = v
+    }
+  }
+  return result
+}
+
 function buildContext(formData: FormValues, requesterEmail: string): EvalContext {
   const request: Record<string, unknown> = { ...formData }
   // Money fields routed by USD thresholds: derive amount_usd when an
@@ -177,7 +190,7 @@ export async function submitCatalogRequest(params: {
   requesterEmail: string
 }): Promise<CatalogRequestRow> {
   const { item, schema, requesterEmail } = params
-  const formData = pruneHiddenValues(schema, params.formData)
+  const formData = sanitizeFormValues(pruneHiddenValues(schema, params.formData))
 
   const errors = validateForm(schema, formData)
   if (errors.length) {
@@ -212,23 +225,30 @@ export async function submitCatalogRequest(params: {
 
 // ── Queues & detail ────────────────────────────────────────────────
 
-export async function listMyCatalogRequests(email: string): Promise<CatalogRequestRow[]> {
+const PAGE_SIZE = 50
+
+export async function listMyCatalogRequests(
+  email: string,
+  page = 0,
+): Promise<CatalogRequestRow[]> {
   const { data, error } = await supabase
     .from('catalog_requests')
     .select('*')
     .ilike('requester_email', email)
     .order('created_at', { ascending: false })
+    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
   if (error) throw error
   return (data ?? []) as CatalogRequestRow[]
 }
 
-export async function listMyQueue(email: string): Promise<CatalogRequestRow[]> {
+export async function listMyQueue(email: string, page = 0): Promise<CatalogRequestRow[]> {
   const { data, error } = await supabase
     .from('catalog_requests')
     .select('*')
     .contains('current_approver_emails', [email])
     .in('status', ['in_progress', 'in_fulfilment'])
     .order('created_at', { ascending: true })
+    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
   if (error) throw error
   return (data ?? []) as CatalogRequestRow[]
 }

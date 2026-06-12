@@ -39,9 +39,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const initialized = useRef(false)
 
-  const loadProfile = async (userId: string): Promise<void> => {
+  const loadProfile = async (userId: string, userEmail?: string | null, userMeta?: Record<string, unknown>): Promise<void> => {
     try {
-      
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -58,13 +58,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(data as Profile)
         setUserRole(data.role as UserRole)
       } else {
+        // Use the explicitly-passed email/metadata — the React `user` state may not
+        // have flushed yet when this is called directly after setUser().
+        const email = userEmail ?? user?.email
+        const fullName = (userMeta?.full_name as string | undefined) ?? email?.split('@')[0]
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
           .insert([{
             id: userId,
-            email: user?.email,
+            email,
             role: 'submitter',
-            full_name: user?.user_metadata?.full_name || user?.email?.split('@')[0]
+            full_name: fullName,
           }])
           .select('*')
           .single()
@@ -84,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (!user) return
-    await loadProfile(user.id)
+    await loadProfile(user.id, user.email, user.user_metadata as Record<string, unknown>)
   }
 
   const signInWithAzure = async () => {
@@ -103,11 +107,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const handleSession = async (session: Session | null) => {
-    
+
     if (session?.user) {
-      
       setUser(session.user)
-      await loadProfile(session.user.id)
+      await loadProfile(
+        session.user.id,
+        session.user.email,
+        session.user.user_metadata as Record<string, unknown>
+      )
     } else {
       setUser(null)
       setProfile(null)
@@ -156,9 +163,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (session?.user) {
                 setUser(session.user)
                 const userId = session.user.id
+                const userEmail = session.user.email
+                const userMeta = session.user.user_metadata as Record<string, unknown>
                 setTimeout(() => {
                   if (!mounted) return
-                  loadProfile(userId).finally(() => {
+                  loadProfile(userId, userEmail, userMeta).finally(() => {
                     if (mounted) setLoading(false)
                   })
                 }, 0)

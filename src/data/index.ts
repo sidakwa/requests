@@ -47,9 +47,8 @@ export function getDeptConfig(dept: string): DeptConfig | undefined {
   return DEPT_CONFIGS.find(d => d.department === dept);
 }
 
-// ── DoA rules (starts with defaults – admin can edit) ───────
-export let ACTIVE_DOA_RULES: DoARule[] = [...DEFAULT_DOA_RULES];
-export function setDoARules(rules: DoARule[]) { ACTIVE_DOA_RULES = rules; }
+// ── DoA rules default snapshot (read-only; live rules come from doa_rules table) ──
+export const ACTIVE_DOA_RULES: DoARule[] = [...DEFAULT_DOA_RULES];
 
 // ── Delegations ─────────────────────────────────────────────
 export const MOCK_DELEGATIONS: Delegation[] = [

@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
+import AuthCallback from '@/pages/AuthCallback'
+import Profile from '@/pages/Profile'
 import NewRequest from '@/pages/NewRequest'
 import ViewRequest from '@/pages/ViewRequest'
 import EditRequest from '@/pages/EditRequest'
@@ -24,6 +26,7 @@ function AppRoutes() {
     if (!user) return
 
     const interval = setInterval(async () => {
+      if (document.visibilityState === 'hidden') return
       const { data: { session }, error } = await supabase.auth.getSession()
       if (error) {
         console.error('[session-refresh] getSession error:', error.message)
@@ -52,6 +55,7 @@ function AppRoutes() {
   if (!user) {
     return (
       <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
@@ -68,18 +72,18 @@ function AppRoutes() {
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/new-request" element={<NewRequest />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/catalog/:slug/new" element={<NewCatalogRequest />} />
         <Route path="/requests/:id" element={<CatalogRequestDetail />} />
         <Route path="/my-catalog-requests" element={<CatalogQueue />} />
         <Route path="/request/:id" element={<ViewRequest />} />
         <Route path="/edit-request/:id" element={<EditRequest />} />
-        <Route path="/profile" element={<Dashboard />} />
         <Route
-          path="/admin" 
+          path="/admin"
           element={
             userRole === 'admin' ? <AdminPanel /> : <Navigate to="/dashboard" replace />
-          } 
+          }
         />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -243,8 +243,9 @@ export function useNewRequestForm({
       if (amount <= 100000) return 'Level 3 - Head of CIC'
       return 'Level 4 - Board/CFO Approval'
     }
+    // DoA rules are USD-denominated — always compare the USD-converted amount
     const rule = doaRules.find(
-      r => grandTotal >= Number(r.min_amount) && grandTotal <= Number(r.max_amount) && r.currency === formData.currency
+      r => grandTotalUSD >= Number(r.min_amount) && grandTotalUSD <= Number(r.max_amount) && r.currency === 'USD'
     )
     return rule?.approval_level || 'Level 1 - Department Head Approval'
   }

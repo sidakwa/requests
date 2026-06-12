@@ -5,14 +5,22 @@ const AZURE_TENANT_ID = Deno.env.get('AZURE_TENANT_ID')
 const AZURE_CLIENT_ID = Deno.env.get('AZURE_CLIENT_ID')
 const AZURE_CLIENT_SECRET = Deno.env.get('AZURE_CLIENT_SECRET')
 
+const allowedOrigin = Deno.env.get('SITE_URL') ?? '*'
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': allowedOrigin,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-application-name',
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  if (allowedOrigin !== '*') {
+    const origin = req.headers.get('Origin') ?? ''
+    if (origin && origin !== allowedOrigin) {
+      return new Response('Forbidden', { status: 403, headers: corsHeaders })
+    }
   }
 
   // Require a valid JWT
