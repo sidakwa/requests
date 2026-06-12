@@ -11,6 +11,10 @@ import AdminPanel from '@/pages/Admin'
 import MyRequests from '@/pages/MyRequests'
 import Approvals from '@/pages/ApprovalsInbox'
 import Reports from '@/pages/ReportsPage'
+import Catalog from '@/pages/Catalog'
+import NewCatalogRequest from '@/pages/Catalog/NewCatalogRequest'
+import CatalogRequestDetail from '@/pages/Catalog/CatalogRequestDetail'
+import CatalogQueue from '@/pages/Catalog/CatalogQueue'
 import { Layout } from '@/components/Layout'
 
 function AppRoutes() {
@@ -64,6 +68,10 @@ function AppRoutes() {
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/new-request" element={<NewRequest />} />
+        <Route path="/catalog" element={<Catalog />} />
+        <Route path="/catalog/:slug/new" element={<NewCatalogRequest />} />
+        <Route path="/requests/:id" element={<CatalogRequestDetail />} />
+        <Route path="/my-catalog-requests" element={<CatalogQueue />} />
         <Route path="/request/:id" element={<ViewRequest />} />
         <Route path="/edit-request/:id" element={<EditRequest />} />
         <Route path="/profile" element={<Dashboard />} />

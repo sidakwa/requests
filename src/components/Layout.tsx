@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   LayoutDashboard,
+  LayoutGrid,
+  ListChecks,
   FileText,
   Inbox,
   BarChart3,
@@ -39,7 +41,9 @@ interface NavItem {
 const getNavigation = (userRole: string | null): NavItem[] => {
   const baseNav = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, description: 'Overview & key metrics' },
+    { name: 'Request Catalog', href: '/catalog', icon: LayoutGrid, description: 'Browse all request types' },
     { name: 'My Requests', href: '/my-requests', icon: FileText, description: 'View and track your requests' },
+    { name: 'Catalog Requests', href: '/my-catalog-requests', icon: ListChecks, description: 'Catalog queue & submissions' },
     { name: 'New Request', href: '/new-request', icon: PlusCircle, description: 'Create CAPEX request' },
   ]
 
