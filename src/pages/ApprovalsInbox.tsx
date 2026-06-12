@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
+import { decideCatalogRequest, getCatalogRequest } from '@/api/platformApi'
 
 interface ApprovalRequest {
-  id: string            // approval_action id
+  id: string            // approval_action id (funding) or synthetic id (catalog)
   request_id: string
   approver_email: string
   action: string
@@ -35,6 +36,7 @@ interface ApprovalRequest {
   total_steps?: number
   requester_email?: string
   doa_level?: string
+  source?: 'catalog'   // undefined = legacy funding request
 }
 
 export default function ApprovalsInbox() {
@@ -56,7 +58,7 @@ export default function ApprovalsInbox() {
   const fetchApprovals = async () => {
     setLoading(true)
     try {
-      // ── Pending: requests currently at this user's approval step ──────────
+      // ── Funding: pending ───────────────────────────────────────────────────
       const { data: pendingRequests, error: pendingReqErr } = await supabase
         .from('funding_requests')
         .select('id, request_number, title, description, amount, currency, budget_type, business_unit, status, current_step, total_steps, requester_email, doa_level, created_at')
@@ -78,7 +80,7 @@ export default function ApprovalsInbox() {
         pendingActions = pa || []
       }
 
-      const pendingCombined: ApprovalRequest[] = (pendingRequests || []).map(req => {
+      const pendingFunding: ApprovalRequest[] = (pendingRequests || []).map(req => {
         const action = pendingActions.find(a => a.request_id === req.id)
         return {
           id: action?.id || '',
@@ -102,7 +104,42 @@ export default function ApprovalsInbox() {
         }
       })
 
-      // ── Actioned: decisions this user has already made ─────────────────────
+      // ── Catalog: pending ───────────────────────────────────────────────────
+      const { data: pendingCatalog } = await supabase
+        .from('catalog_requests')
+        .select('id, request_number, catalog_slug, title, form_data, instance, requester_email, status, current_stage_id, created_at')
+        .contains('current_approver_emails', [user?.email])
+        .in('status', ['in_progress', 'in_fulfilment'])
+        .order('created_at', { ascending: false })
+
+      const pendingCatalogCombined: ApprovalRequest[] = (pendingCatalog || []).map((req: any) => {
+        const nonSkipped = (req.instance?.stages ?? []).filter((s: any) => s.status !== 'skipped')
+        const stageIndex = nonSkipped.findIndex((s: any) => s.id === req.current_stage_id)
+        const stage = nonSkipped[stageIndex]
+        return {
+          id: `cat-pending-${req.id}`,
+          request_id: req.id,
+          approver_email: user?.email || '',
+          action: 'pending',
+          comments: '',
+          created_at: req.created_at,
+          request_number: req.request_number,
+          title: req.title,
+          description: String(req.form_data?.justification ?? req.form_data?.description ?? ''),
+          amount: typeof req.form_data?.amount === 'number' ? req.form_data.amount : 0,
+          currency: String(req.form_data?.currency ?? 'USD'),
+          budget_type: req.catalog_slug,
+          business_unit: String(req.form_data?.business_unit ?? req.catalog_slug ?? ''),
+          status: 'Pending',
+          current_step: stageIndex >= 0 ? stageIndex + 1 : 1,
+          total_steps: nonSkipped.length,
+          requester_email: req.requester_email,
+          doa_level: stage?.name ?? '',
+          source: 'catalog' as const,
+        }
+      })
+
+      // ── Funding: actioned ──────────────────────────────────────────────────
       const { data: actionedActions, error: actionedErr } = await supabase
         .from('approval_actions')
         .select('id, request_id, approver_email, action, comments, created_at')
@@ -122,7 +159,7 @@ export default function ApprovalsInbox() {
         actionedRequests = ar || []
       }
 
-      const actionedCombined: ApprovalRequest[] = (actionedActions || [])
+      const actionedFunding: ApprovalRequest[] = (actionedActions || [])
         .map(action => {
           const req = actionedRequests.find(r => r.id === action.request_id)
           if (!req) return null
@@ -149,7 +186,52 @@ export default function ApprovalsInbox() {
         })
         .filter(Boolean) as ApprovalRequest[]
 
-      setApprovals([...pendingCombined, ...actionedCombined])
+      // ── Catalog: actioned ──────────────────────────────────────────────────
+      const { data: catalogEvents } = await supabase
+        .from('request_events')
+        .select('request_id, data, created_at')
+        .eq('actor_email', user?.email)
+        .eq('event_type', 'approval.recorded')
+        .order('created_at', { ascending: false })
+
+      const catalogActionedIds = [...new Set((catalogEvents || []).map((e: any) => e.request_id))]
+      let actionedCatalogRows: any[] = []
+      if (catalogActionedIds.length > 0) {
+        const { data: ar } = await supabase
+          .from('catalog_requests')
+          .select('id, request_number, catalog_slug, title, form_data, instance, requester_email, status, current_stage_id, created_at')
+          .in('id', catalogActionedIds)
+        actionedCatalogRows = ar || []
+      }
+
+      const actionedCatalog: ApprovalRequest[] = actionedCatalogRows.map((req: any) => {
+        const event = (catalogEvents || []).find((e: any) => e.request_id === req.id)
+        const decision = (event?.data as any)?.decision || 'approved'
+        const nonSkipped = (req.instance?.stages ?? []).filter((s: any) => s.status !== 'skipped')
+        return {
+          id: `cat-actioned-${req.id}`,
+          request_id: req.id,
+          approver_email: user?.email || '',
+          action: decision,
+          comments: (event?.data as any)?.comments || '',
+          created_at: event?.created_at || req.created_at,
+          request_number: req.request_number,
+          title: req.title,
+          description: String(req.form_data?.justification ?? req.form_data?.description ?? ''),
+          amount: typeof req.form_data?.amount === 'number' ? req.form_data.amount : 0,
+          currency: String(req.form_data?.currency ?? 'USD'),
+          budget_type: req.catalog_slug,
+          business_unit: String(req.form_data?.business_unit ?? req.catalog_slug ?? ''),
+          status: req.status,
+          current_step: nonSkipped.length,
+          total_steps: nonSkipped.length,
+          requester_email: req.requester_email,
+          doa_level: '',
+          source: 'catalog' as const,
+        }
+      })
+
+      setApprovals([...pendingFunding, ...pendingCatalogCombined, ...actionedFunding, ...actionedCatalog])
     } catch (err) {
       toast.error('Failed to load approvals')
     } finally {
@@ -251,6 +333,25 @@ export default function ApprovalsInbox() {
 
     setSubmitting(true)
     try {
+      // ── Catalog request: delegate to the workflow engine ───────────────────
+      if (selectedRequest.source === 'catalog') {
+        const { request } = await getCatalogRequest(selectedRequest.request_id)
+        await decideCatalogRequest({
+          request,
+          decision: decisionAction,
+          actorEmail: user!.email!,
+          comments: decisionComments || undefined,
+        })
+        const label = decisionAction === 'approved' ? 'approved' : decisionAction === 'rejected' ? 'rejected' : 'returned'
+        toast.success(`Request ${label} successfully`)
+        fetchApprovals()
+        setShowDecisionDialog(false)
+        setDecisionComments('')
+        setSelectedRequest(null)
+        return
+      }
+
+      // ── Funding request: legacy approval_actions flow ──────────────────────
       const { error: updateError } = await supabase
         .from('approval_actions')
         .update({ action: decisionAction, comments: decisionComments })
@@ -433,7 +534,7 @@ export default function ApprovalsInbox() {
                   size="sm"
                   variant="outline"
                   className="text-blue-600 border-blue-200"
-                  onClick={() => navigate(`/request/${approval.request_id}`)}
+                  onClick={() => navigate(approval.source === 'catalog' ? `/requests/${approval.request_id}` : `/request/${approval.request_id}`)}
                 >
                   <Eye className="w-4 h-4 mr-1" /> View Details
                 </Button>

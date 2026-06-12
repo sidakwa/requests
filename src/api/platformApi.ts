@@ -307,9 +307,14 @@ export async function cancelCatalogRequest(request: CatalogRequestRow): Promise<
 // Reuses the send-approval-email edge function. Email failure must never
 // block a submission or a decision — same contract as the CAPEX flow.
 
+function catalogLabel(slug: string): string {
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
 function notifyForEvents(row: CatalogRequestRow, events: EngineEvent[], actorEmail?: string): void {
   const amount = typeof row.form_data.amount === 'number' ? row.form_data.amount : 0
   const currency = String(row.form_data.currency ?? 'USD')
+  const requestLabel = catalogLabel(row.catalog_slug)
 
   for (const event of events) {
     if (event.type === 'stage.entered') {
@@ -329,6 +334,7 @@ function notifyForEvents(row: CatalogRequestRow, events: EngineEvent[], actorEma
           doaLevel: stage.name,
           previousApprover: actorEmail ?? null,
           totalSteps,
+          requestLabel,
           approvers: stage.approvers
             .filter(a => a.decision === 'pending')
             .map(a => ({ email: a.email, role: a.label, step: stageNumber })),

@@ -50,6 +50,8 @@ interface ApprovalEmailPayload {
   previousApprover?: string | null
   totalSteps: number
   approvers: Approver[]
+  /** Human-readable request type, e.g. "system access" or "infrastructure change". Defaults to "funding". */
+  requestLabel?: string
 }
 
 interface StatusUpdatePayload {
@@ -329,7 +331,7 @@ function buildApproverEmailHtml(payload: ApprovalEmailPayload, approver: Approve
       <td style="padding-bottom:20px;">
         <p style="margin:0 0 6px;color:${BRAND.text};font-size:15px;">Hi <strong>${esc(approverName)}</strong>,</p>
         <p style="margin:0;color:${BRAND.muted};font-size:14px;line-height:1.6;">
-          A funding request requires your approval as <strong>${esc(approver.role)}</strong>.
+          A ${esc(payload.requestLabel ?? 'funding')} request requires your approval as <strong>${esc(approver.role)}</strong>.
           Please review the details below and log in to the portal to approve, return, or reject it.
         </p>
       </td>
@@ -369,7 +371,7 @@ function buildApproverEmailText(payload: ApprovalEmailPayload, approver: Approve
   const daysPending = payload.daysPending ?? 0
   return [
     daysPending > 3 ? `⏰ This request has been waiting for ${daysPending} days\n` : '',
-    `SEACOM FUNDING PORTAL — APPROVAL REQUIRED (Stage ${approver.step} of ${payload.totalSteps})`,
+    `SEACOM FUNDING PORTAL — ${(payload.requestLabel ?? 'FUNDING').toUpperCase()} APPROVAL REQUIRED (Stage ${approver.step} of ${payload.totalSteps})`,
     '='.repeat(60),
     '',
     `Hi ${approverName},`,
