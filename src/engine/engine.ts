@@ -246,7 +246,7 @@ function handleRejection(
   events: EngineEvent[],
   now: () => string
 ): DecisionResult {
-  const onReject = stage.on_reject
+  const onReject = stage.on_reject ?? 'terminate'
 
   if (onReject.startsWith('return_to_stage:')) {
     const targetId = onReject.slice('return_to_stage:'.length)

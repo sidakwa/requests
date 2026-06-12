@@ -145,10 +145,10 @@ export default function CatalogRequestDetail() {
               <Button onClick={() => decide('approved')} disabled={acting} className="bg-green-600 hover:bg-green-700">
                 <Check className="w-4 h-4 mr-1" /> Approve
               </Button>
-              <Button onClick={() => decide('returned')} disabled={acting} variant="outline">
+              <Button onClick={() => decide('returned')} disabled={acting || !comments.trim()} variant="outline">
                 <CornerUpLeft className="w-4 h-4 mr-1" /> Return for Info
               </Button>
-              <Button onClick={() => decide('rejected')} disabled={acting} variant="destructive">
+              <Button onClick={() => decide('rejected')} disabled={acting || !comments.trim()} variant="destructive">
                 <X className="w-4 h-4 mr-1" /> Reject
               </Button>
             </div>
