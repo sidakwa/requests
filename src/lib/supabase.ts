@@ -19,22 +19,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-export const signInWithAzure = async () => {
-  const redirectTo = import.meta.env.VITE_AZURE_REDIRECT_URI || 
-                     `${window.location.origin}/auth/callback`
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'azure',
-    options: {
-      redirectTo,
-      scopes: 'email openid profile User.Read offline_access',
-      queryParams: { tenant: import.meta.env.VITE_AZURE_TENANT_ID }
-    }
-  })
-
-  if (error) throw error
-  return data
-}
 
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut()

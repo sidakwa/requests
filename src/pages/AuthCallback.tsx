@@ -8,6 +8,23 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Supabase redirects here with ?error=... when the Azure code
+      // exchange fails (e.g. expired code, tenant mismatch).
+      // Detect this immediately rather than waiting 10 s to time out.
+      const params = new URLSearchParams(window.location.search)
+      const urlError = params.get('error')
+      if (urlError) {
+        const desc = params.get('error_description')?.replace(/\+/g, ' ') ?? urlError
+        // Clear stale PKCE data so the next attempt starts clean.
+        for (const key of Object.keys(localStorage)) {
+          if (key.startsWith('sb-') || key.startsWith('supabase.auth.')) {
+            localStorage.removeItem(key)
+          }
+        }
+        setError(desc)
+        return
+      }
+
       // Give Supabase's onAuthStateChange a moment to fire and set the session
       // after its own internal code exchange completes
       const { data: { session } } = await supabase.auth.getSession()
