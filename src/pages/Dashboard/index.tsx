@@ -96,16 +96,18 @@ export default function Dashboard() {
       const returnedCount = requests?.filter(r => r.status === 'Returned').length || 0
       const rejectedCount = requests?.filter(r => r.status === 'Rejected').length || 0
 
-      const totalAmount = requests?.reduce((sum, r) => sum + (r.amount || 0), 0) || 0
+      const usd = (r: { amount_usd?: number; amount?: number }) => r.amount_usd || r.amount || 0
+
+      const totalAmount = requests?.reduce((sum, r) => sum + usd(r), 0) || 0
       const approvedAmount = requests?.reduce((sum, r) =>
-        r.status === 'Approved' ? sum + (r.amount || 0) : sum, 0
+        r.status === 'Approved' ? sum + usd(r) : sum, 0
       ) || 0
       const pendingAmount = requests?.reduce((sum, r) =>
-        r.status === 'Pending' ? sum + (r.amount || 0) : sum, 0
+        r.status === 'Pending' ? sum + usd(r) : sum, 0
       ) || 0
 
       const capexAmount = requests?.reduce((sum, r) =>
-        r.budget_type === 'CAPEX' ? sum + (r.amount || 0) : sum, 0
+        r.budget_type === 'CAPEX' ? sum + usd(r) : sum, 0
       ) || 0
       const opexAmount = totalAmount - capexAmount
 
@@ -141,8 +143,8 @@ export default function Dashboard() {
           monthlyMap.set(monthName, { month: monthName, actual: 0, forecast: 0 })
         }
         const entry = monthlyMap.get(monthName)!
-        entry.actual += r.amount || 0
-        entry.forecast += (r.amount || 0) * 1.1
+        entry.actual += usd(r)
+        entry.forecast += usd(r) * 1.1
       })
 
       setMonthlySpend(Array.from(monthlyMap.values()))
@@ -153,7 +155,7 @@ export default function Dashboard() {
         if (!entityMap.has(entityCode)) {
           entityMap.set(entityCode, { name: entityCode, amount: 0 })
         }
-        entityMap.get(entityCode)!.amount += r.amount || 0
+        entityMap.get(entityCode)!.amount += usd(r)
       })
       setSpendByEntity(Array.from(entityMap.values()).sort((a, b) => b.amount - a.amount).slice(0, 8))
 
